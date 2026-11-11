@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LifeOS — حياتك كلها... بتنظيم أذكى</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 m-0">
+  <div class="max-w-4xl mx-auto space-y-4">
+    <!-- Top Header Bar -->
+    <header class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center font-bold text-sm">
+          LO
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base">LifeOS — Midnight Aurora</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-[var(--secondary)] text-[var(--secondary-foreground)]">حياتك كلها... بتنظيم أذكى</span>
+          </div>
+          <p id="greetingText" class="text-xs text-[var(--muted-foreground)] mt-0.5">صباح الإنجاز والبركة يا أحمد • الثلاثاء ١٠ نوفمبر ٢٠٢٦ • ٩ جمادى الأولى ١٤٤٨ هـ</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-lg bg-[var(--content)] border border-[var(--card-border)] tabular-nums">الفترة: 2026-11</span>
+        <button onclick="openQuickAddModal()" class="px-3 py-1.5 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold">
+          + إضافة سريعة
+        </button>
+      </div>
+    </header>
+
+    <!-- Main 5-Destination Navigation -->
+    <nav class="grid grid-cols-5 gap-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-1.5 text-xs font-semibold">
+      <button onclick="switchTab('home')" id="nav-home" class="py-2.5 px-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] transition">
+        ١. الرئيسية
+      </button>
+      <button onclick="switchTab('planner')" id="nav-planner" class="py-2.5 px-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        ٢. التخطيط
+      </button>
+      <button onclick="switchTab('finance')" id="nav-finance" class="py-2.5 px-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        ٣. المالية
+      </button>
+      <button onclick="switchTab('wellbeing')" id="nav-wellbeing" class="py-2.5 px-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        ٤. العادات والصحة
+      </button>
+      <button onclick="switchTab('lifehub')" id="nav-lifehub" class="py-2.5 px-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        ٥. حياتي
+      </button>
+    </nav>
+
+    <!-- TAB 1: HOME DASHBOARD -->
+    <section id="tab-home" class="space-y-4">
+      <!-- Pending Monthly Closing Alert Banner -->
+      <div id="rolloverBanner" class="bg-[var(--card)] border border-[var(--warning)] rounded-2xl p-3.5 flex items-center justify-between gap-3">
+        <div>
+          <div class="text-xs font-bold text-[var(--warning)]">مراجعة إغلاق الشهر السابق (2026-10) مطلوبة</div>
+          <p class="text-xs text-[var(--muted-foreground)] mt-0.5">يوجد فائض ميزانية بقيمة 3,300 ج.م في بنود شهر أكتوبر بانتظار قرارك اليدوي قبل الترحيل.</p>
+        </div>
+        <button onclick="switchTab('finance'); switchFinanceSub('rollover')" class="px-3 py-1.5 rounded-xl bg-[var(--warning)] text-[var(--background)] text-xs font-bold shrink-0">
+          بدء المراجعة اليدوية
+        </button>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-1">
+          <div class="text-xs text-[var(--muted-foreground)]">الرصيد النقدي الفعلي (الأرصدة الحقيقية)</div>
+          <div id="homeNetCash" class="text-xl font-bold tabular-nums text-[var(--success)]">23,450 ج.م</div>
+          <div class="text-xs text-[var(--muted-foreground)]">موزع على ٣ حسابات نشطة (بنك، نقدي، محفظة)</div>
+        </div>
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-1">
+          <div class="text-xs text-[var(--muted-foreground)]">المتبقي في بنود الميزانية (نوفمبر)</div>
+          <div id="homeRemainingBudget" class="text-xl font-bold tabular-nums text-[var(--primary)]">9,250 ج.م</div>
+          <div class="text-xs text-[var(--muted-foreground)]">من إجمالي مخصصات 13,500 ج.م <span id="carryoverBadge" class="hidden text-[var(--success)]">(شامل الترحيل)</span></div>
+        </div>
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-1">
+          <div class="text-xs text-[var(--muted-foreground)]">الصلاة القادمة • القاهرة (الهيئة العامة للمساحة)</div>
+          <div class="text-xl font-bold tabular-nums text-[var(--warning)]">العصر • 03:02 م</div>
+          <div class="text-xs text-[var(--muted-foreground)]">القبلة: 136° SE • متبقي ٣٢ دقيقة</div>
+        </div>
+      </div>
+
+      <!-- Adaptive Focus Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h2 class="font-bold text-sm">أهم ٣ أولويات اليوم</h2>
+            <button onclick="switchTab('planner')" class="text-xs text-[var(--link)]">فتح المخطط ←</button>
+          </div>
+          <div id="homeTasksList" class="space-y-2 text-xs"></div>
+        </div>
+
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h2 class="font-bold text-sm">الورد اليومي والأذكار</h2>
+            <button onclick="switchTab('lifehub')" class="text-xs text-[var(--link)]">فتح ركن العبادة ←</button>
+          </div>
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] space-y-2 text-xs">
+            <div class="flex justify-between">
+              <span class="font-semibold">سورة الكهف • الآية ١-١٠</span>
+              <span class="text-[var(--success)] tabular-nums">٤ / ٥ صفحات اليوم</span>
+            </div>
+            <p class="text-[var(--muted-foreground)] leading-relaxed">﴿ إِنَّ الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ إِنَّا لَا نُضِيعُ أَجْرَ مَنْ أَحْسَنَ عَمَلًا ﴾</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: PLANNER -->
+    <section id="tab-planner" class="hidden space-y-4">
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="font-bold text-sm">التخطيط والمهام والجدول الزمني</h2>
+            <p class="text-xs text-[var(--muted-foreground)]">كشف تعارض المواعيد مع أوقات الصلاة تلقائياً دون الكتابة فوق مواعيدك</p>
+          </div>
+          <div class="flex gap-1.5 text-xs">
+            <span class="px-2.5 py-1 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)]">اليومي</span>
+            <span class="px-2.5 py-1 rounded-lg bg-[var(--content)]">الأسبوعي</span>
+            <span class="px-2.5 py-1 rounded-lg bg-[var(--content)]">الأجندة</span>
+            <span class="px-2.5 py-1 rounded-lg bg-[var(--content)]">الكتل الزمنية</span>
+          </div>
+        </div>
+
+        <!-- Prayer Conflict Alert -->
+        <div id="conflictAlert" class="p-3 rounded-xl bg-[var(--content)] border border-[var(--warning)] flex items-center justify-between gap-3 text-xs">
+          <div>
+            <span class="font-bold text-[var(--warning)]">تعارض مع وقت صلاة الظهر (11:54 ص):</span>
+            <span class="text-[var(--muted-foreground)]"> موعد "اجتماع مراجعة التصميم (11:45 - 12:30)" يتداخل مع حجز الصلاة (٢٠ دقيقة).</span>
+          </div>
+          <button onclick="resolveConflict()" class="px-2.5 py-1 rounded-lg bg-[var(--warning)] text-[var(--background)] font-bold shrink-0">
+            إزاحة الموعد إلى 12:20 م
+          </button>
+        </div>
+
+        <!-- Add Task Form -->
+        <div class="flex gap-2">
+          <input id="newTaskInput" type="text" placeholder="أضف مهمة جديدة... (مثال: مراجعة ميزانية المشروع)" class="flex-1 px-3 py-2 rounded-xl bg-[var(--content)] border border-[var(--card-border)] text-xs" />
+          <button onclick="addTask()" class="px-4 py-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] text-xs font-bold">إضافة مهمة</button>
+        </div>
+
+        <div id="plannerTasksList" class="space-y-2 text-xs"></div>
+      </div>
+    </section>
+
+    <!-- TAB 3: FINANCE & ROLLOVER -->
+    <section id="tab-finance" class="hidden space-y-4">
+      <div class="flex gap-2 text-xs font-semibold">
+        <button onclick="switchFinanceSub('overview')" id="fsub-overview" class="px-3 py-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)]">نظرة عامة وبنود الميزانية</button>
+        <button onclick="switchFinanceSub('rollover')" id="fsub-rollover" class="px-3 py-2 rounded-xl bg-[var(--card)] border border-[var(--border)]">معالج إغلاق الشهر والترحيل اليدوي</button>
+      </div>
+
+      <!-- Finance Overview -->
+      <div id="finance-overview" class="space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-3.5">
+            <div class="text-[var(--muted-foreground)]">الحساب البنكي الرئيسي</div>
+            <div id="accBankBal" class="text-base font-bold tabular-nums mt-1">18,200 ج.م</div>
+          </div>
+          <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-3.5">
+            <div class="text-[var(--muted-foreground)]">المحفظة النقدية</div>
+            <div id="accCashBal" class="text-base font-bold tabular-nums mt-1">3,450 ج.م</div>
+          </div>
+          <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-3.5">
+            <div class="text-[var(--muted-foreground)]">محفظة رقمية (إنستاباي/فودافون)</div>
+            <div class="text-base font-bold tabular-nums mt-1">1,800 ج.م</div>
+          </div>
+        </div>
+
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-3">
+          <h3 class="font-bold text-sm">بنود الميزانية الشهرية (نوفمبر 2026)</h3>
+          <div id="budgetCategoriesList" class="space-y-2.5 text-xs"></div>
+        </div>
+      </div>
+
+      <!-- Monthly Closing & Carryover Wizard -->
+      <div id="finance-rollover" class="hidden bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-4 text-xs">
+        <div class="border-b border-[var(--card-border)] pb-3">
+          <h3 class="font-bold text-sm text-[var(--warning)]">معالج إغلاق الشهر وترحيل الميزانية اليدوي (من 2026-10 إلى 2026-11)</h3>
+          <p class="text-[var(--muted-foreground)] mt-1">
+            قاعدة صارمة: ترحيل الميزانية ينقل فقط "مخصصات الإنفاق المتاحة" للبند في الشهر الجديد، ولا يخلق أو يزيف أي رصيد نقدي في حساباتك البنكية أو النقدية.
+          </p>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div class="font-bold">١. طعام ومطاعم (متبقي من أكتوبر: 1,800 ج.م)</div>
+              <div class="text-[var(--muted-foreground)]">المخصص الأساسي لنوفمبر: 6,000 ج.م</div>
+            </div>
+            <select id="ro-food" onchange="updateRolloverPreview()" class="px-2.5 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+              <option value="full" selected>ترحيل كامل (+1,800 ج.م)</option>
+              <option value="custom">مبلغ مخصص (+900 ج.م)</option>
+              <option value="none">تصفير البند (0 ج.م)</option>
+            </select>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div class="font-bold">٢. مواصلات وانتقالات (متبقي من أكتوبر: 1,000 ج.م)</div>
+              <div class="text-[var(--muted-foreground)]">المخصص الأساسي لنوفمبر: 2,500 ج.م</div>
+            </div>
+            <select id="ro-transport" onchange="updateRolloverPreview()" class="px-2.5 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+              <option value="full">ترحيل كامل (+1,000 ج.م)</option>
+              <option value="custom" selected>مبلغ مخصص (+600 ج.م)</option>
+              <option value="none">تصفير البند (0 ج.م)</option>
+            </select>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div class="font-bold">٣. فواتير وسكن (متبقي من أكتوبر: 500 ج.م)</div>
+              <div class="text-[var(--muted-foreground)]">المخصص الأساسي لنوفمبر: 5,000 ج.م</div>
+            </div>
+            <select id="ro-bills" onchange="updateRolloverPreview()" class="px-2.5 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+              <option value="full">ترحيل كامل (+500 ج.م)</option>
+              <option value="custom">مبلغ مخصص (+250 ج.م)</option>
+              <option value="none" selected>تصفير البند (0 ج.م)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] flex items-center justify-between">
+          <span>إجمالي الميزانية المرحّلة إلى نوفمبر 2026:</span>
+          <span id="roTotalPreview" class="font-bold text-sm tabular-nums text-[var(--success)]">+2,400 ج.م (الرصيد النقدي الفعلي ثابت: 23,450 ج.م)</span>
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="roConfirmCheck" type="checkbox" class="accent-[var(--primary)]" />
+          <span>أؤكد مراجعتي اليدوية لقرارات الترحيل وعدم تعديل الأرصدة النقدية الفعلية للحسابات.</span>
+        </label>
+
+        <button id="roSubmitBtn" onclick="executeRollover()" class="w-full py-2.5 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] font-bold">
+          اعتماد إغلاق أكتوبر وتطبيق الترحيل على نوفمبر
+        </button>
+      </div>
+    </section>
+
+    <!-- TAB 4: WELLBEING -->
+    <section id="tab-wellbeing" class="hidden space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2">
+          <div class="text-[var(--muted-foreground)]">شرب الماء اليومي</div>
+          <div id="waterCount" class="text-lg font-bold tabular-nums text-[var(--link)]">2,000 / 2,500 مل</div>
+          <button onclick="addWater()" class="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] font-bold">+ كوب ماء (250 مل)</button>
+        </div>
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2">
+          <div class="text-[var(--muted-foreground)]">ساعات النوم وجودته</div>
+          <div class="text-lg font-bold tabular-nums text-[var(--success)]">7.5 ساعات • جودة 88%</div>
+          <div class="text-[var(--muted-foreground)]">انتظام ممتاز خلال آخر ٧ أيام</div>
+        </div>
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-2">
+          <div class="text-[var(--muted-foreground)]">سلسلة العادات (Streak)</div>
+          <div class="text-lg font-bold tabular-nums text-[var(--warning)]">١٤ يوماً متتالية</div>
+          <div class="text-[var(--muted-foreground)]">أذكار الصباح • رياضة المشي • القراءة</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: LIFE HUB (DEEN, NEWS, AI) -->
+    <section id="tab-lifehub" class="hidden space-y-4 text-xs">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <!-- Deen & Adhkar -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-sm text-[var(--warning)]">ركن العبادة • الأذكار الموثقة</h3>
+            <span class="px-2 py-0.5 rounded bg-[var(--content)] tabular-nums">أذكار الصباح</span>
+          </div>
+          <p class="leading-relaxed bg-[var(--content)] p-3 rounded-xl border border-[var(--card-border)]">
+            «اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ...» (رواه البخاري ٦٣٠٦)
+          </p>
+          <div class="flex items-center justify-between">
+            <span id="dhikrCounterText" class="text-[var(--muted-foreground)] tabular-nums">العداد: 0 / 3</span>
+            <button onclick="incrementDhikr()" class="px-3 py-1.5 rounded-xl bg-[var(--warning)] text-[var(--background)] font-bold">تسبيح (+1)</button>
+          </div>
+        </div>
+
+        <!-- AI Assistant with Confirmation Gate -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 space-y-3">
+          <h3 class="font-bold text-sm">المساعد الذكي (بوابة تأكيد العمليات المالية)</h3>
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] space-y-2">
+            <div class="text-[var(--muted-foreground)]">أمر صوتي/نصي: «سجل إني صرفت 350 جنيه أكل النهاردة»</div>
+            <div id="aiProposalBox" class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--primary)] flex items-center justify-between gap-2">
+              <span>مقترح: خصم 350 ج.م من (طعام ومطاعم)</span>
+              <button onclick="confirmAiExpense()" class="px-2.5 py-1 rounded-lg bg-[var(--success)] text-[var(--background)] font-bold">تأكيد التنفيذ</button>
+            </div>
+          </div>
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] space-y-1">
+            <div class="font-semibold">موجز الأخبار الموثق (فصل وقت النشر عن الجلب)</div>
+            <div class="text-[var(--muted-foreground)]">• الشرق للأخبار: إطلاق مبادرة تقنية للذكاء الاصطناعي بالمنطقة (النشر: 10:00 ص | الجلب: 06:00 م)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Add Expense Modal -->
+    <div id="quickAddModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 max-w-md w-full space-y-3 text-xs">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm">إضافة معاملة مالية فورية</h3>
+          <button onclick="closeQuickAddModal()" class="text-[var(--muted-foreground)]">✕ إغلاق</button>
+        </div>
+        <input id="qaDesc" type="text" value="وجبة غداء عمل" class="w-full px-3 py-2 rounded-xl bg-[var(--content)] border border-[var(--card-border)]" placeholder="الوصف" />
+        <input id="qaAmount" type="number" value="250" class="w-full px-3 py-2 rounded-xl bg-[var(--content)] border border-[var(--card-border)] tabular-nums" placeholder="المبلغ (ج.م)" />
+        <button onclick="submitQuickExpense()" class="w-full py-2.5 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] font-bold">حفظ المعاملة وتحديث الميزانية</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      netCash: 23450,
+      bankCash: 18200,
+      walletCash: 3450,
+      waterMl: 2000,
+      dhikrCount: 0,
+      rolloverCompleted: false,
+      tasks: [
+        { id: 1, title: 'إنهاء مراجعة التصميم المعماري لـ LifeOS', done: true, tag: 'مشروع أساسي' },
+        { id: 2, title: 'مراجعة إغلاق ميزانية شهر أكتوبر وترحيل الفائض', done: false, tag: 'المالية' },
+        { id: 3, title: 'جلسة قراءة الورد اليومي (سورة الكهف)', done: false, tag: 'ركن العبادة' },
+      ],
+      categories: [
+        { id: 'food', name: 'طعام ومطاعم', allocated: 6000, carryover: 0, spent: 2150 },
+        { id: 'transport', name: 'مواصلات وانتقالات', allocated: 2500, carryover: 0, spent: 900 },
+        { id: 'bills', name: 'فواتير وسكن', allocated: 5000, carryover: 0, spent: 1200 },
+      ]
+    };
+
+    function formatEGP(n) {
+      return n.toLocaleString('en-US') + ' ج.م';
+    }
+
+    function renderAll() {
+      document.getElementById('homeNetCash').textContent = formatEGP(state.netCash);
+      document.getElementById('accBankBal').textContent = formatEGP(state.bankCash);
+      document.getElementById('accCashBal').textContent = formatEGP(state.walletCash);
+
+      const totalRemaining = state.categories.reduce((acc, c) => acc + (c.allocated + c.carryover - c.spent), 0);
+      document.getElementById('homeRemainingBudget').textContent = formatEGP(totalRemaining);
+
+      // Tasks
+      const taskHtml = state.tasks.map(t => `
+        <div onclick="toggleTask(${t.id})" class="p-2.5 rounded-xl bg-[var(--content)] border border-[var(--card-border)] flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" ${t.done ? 'checked' : ''} class="accent-[var(--primary)]" />
+            <span class="${t.done ? 'line-through text-[var(--muted-foreground)]' : 'font-medium'}">${t.title}</span>
+          </div>
+          <span class="px-2 py-0.5 rounded bg-[var(--card)] text-[var(--muted-foreground)]">${t.tag}</span>
+        </div>
+      `).join('');
+      document.getElementById('homeTasksList').innerHTML = taskHtml;
+      document.getElementById('plannerTasksList').innerHTML = taskHtml;
+
+      // Categories
+      document.getElementById('budgetCategoriesList').innerHTML = state.categories.map(c => {
+        const eff = c.allocated + c.carryover;
+        const rem = eff - c.spent;
+        const pct = Math.min(100, Math.round((c.spent / eff) * 100));
+        return `
+          <div class="p-3 rounded-xl bg-[var(--content)] border border-[var(--card-border)] space-y-1.5">
+            <div class="flex justify-between font-semibold">
+              <span>${c.name} ${c.carryover > 0 ? `<span class="text-[var(--success)]">(+${c.carryover} مرحّل)</span>` : ''}</span>
+              <span class="tabular-nums">متبقي: ${formatEGP(rem)} من ${formatEGP(eff)}</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-[var(--card)] overflow-hidden">
+              <div class="h-full bg-[var(--primary)]" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function switchTab(tab) {
+      ['home', 'planner', 'finance', 'wellbeing', 'lifehub'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById('nav-' + t);
+        if (t === tab) {
+          btn.className = 'py-2.5 px-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] transition';
+        } else {
+          btn.className = 'py-2.5 px-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition';
+        }
+      });
+    }
+
+    function switchFinanceSub(sub) {
+      document.getElementById('finance-overview').classList.toggle('hidden', sub !== 'overview');
+      document.getElementById('finance-rollover').classList.toggle('hidden', sub !== 'rollover');
+      document.getElementById('fsub-overview').className = sub === 'overview'
+        ? 'px-3 py-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)]'
+        : 'px-3 py-2 rounded-xl bg-[var(--card)] border border-[var(--border)]';
+      document.getElementById('fsub-rollover').className = sub === 'rollover'
+        ? 'px-3 py-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)]'
+        : 'px-3 py-2 rounded-xl bg-[var(--card)] border border-[var(--border)]';
+    }
+
+    function toggleTask(id) {
+      const t = state.tasks.find(x => x.id === id);
+      if (t) t.done = !t.done;
+      renderAll();
+    }
+
+    function addTask() {
+      const inp = document.getElementById('newTaskInput');
+      if (!inp.value.trim()) return;
+      state.tasks.unshift({ id: Date.now(), title: inp.value.trim(), done: false, tag: 'مهمة جديدة' });
+      inp.value = '';
+      renderAll();
+    }
+
+    function resolveConflict() {
+      const el = document.getElementById('conflictAlert');
+      el.innerHTML = '<span class="text-[var(--success)] font-bold">✓ تم حل التعارض: أُزيح موعد "اجتماع مراجعة التصميم" إلى الساعة 12:20 م بعد صلاة الظهر.</span>';
+    }
+
+    function updateRolloverPreview() {
+      const f = document.getElementById('ro-food').value;
+      const t = document.getElementById('ro-transport').value;
+      const b = document.getElementById('ro-bills').value;
+      const fVal = f === 'full' ? 1800 : f === 'custom' ? 900 : 0;
+      const tVal = t === 'full' ? 1000 : t === 'custom' ? 600 : 0;
+      const bVal = b === 'full' ? 500 : b === 'custom' ? 250 : 0;
+      const sum = fVal + tVal + bVal;
+      document.getElementById('roTotalPreview').textContent = `+${sum.toLocaleString('en-US')} ج.م (الرصيد النقدي الفعلي ثابت: ${formatEGP(state.netCash)})`;
+      return { fVal, tVal, bVal, sum };
+    }
+
+    function executeRollover() {
+      if (state.rolloverCompleted) return;
+      if (!document.getElementById('roConfirmCheck').checked) {
+        alert('يرجى تفعيل مربع التأكيد اليدوي أولاً قبل اعتماد الترحيل.');
+        return;
+      }
+      const { fVal, tVal, bVal } = updateRolloverPreview();
+      state.categories[0].carryover = fVal;
+      state.categories[1].carryover = tVal;
+      state.categories[2].carryover = bVal;
+      state.rolloverCompleted = true;
+      document.getElementById('rolloverBanner').classList.add('hidden');
+      document.getElementById('carryoverBadge').classList.remove('hidden');
+      const btn = document.getElementById('roSubmitBtn');
+      btn.textContent = '✓ تم إغلاق أكتوبر وترحيل الميزانية بنجاح (مؤمّن ضد التكرار)';
+      btn.disabled = true;
+      renderAll();
+      switchFinanceSub('overview');
+    }
+
+    function addWater() {
+      state.waterMl += 250;
+      document.getElementById('waterCount').textContent = `${state.waterMl.toLocaleString('en-US')} / 2,500 مل`;
+    }
+
+    function incrementDhikr() {
+      state.dhikrCount = (state.dhikrCount + 1);
+      document.getElementById('dhikrCounterText').textContent = `العداد: ${state.dhikrCount} / 3`;
+    }
+
+    function confirmAiExpense() {
+      state.netCash -= 350;
+      state.walletCash -= 350;
+      state.categories[0].spent += 350;
+      document.getElementById('aiProposalBox').innerHTML = '<span class="text-[var(--success)] font-bold">✓ تم التأكيد وتسجيل مصروف ٣٥٠ ج.م في بند طعام ومطاعم.</span>';
+      renderAll();
+    }
+
+    function openQuickAddModal() {
+      document.getElementById('quickAddModal').classList.remove('hidden');
+    }
+    function closeQuickAddModal() {
+      document.getElementById('quickAddModal').classList.add('hidden');
+    }
+    function submitQuickExpense() {
+      const amt = Number(document.getElementById('qaAmount').value) || 0;
+      if (amt > 0) {
+        state.netCash -= amt;
+        state.walletCash -= amt;
+        state.categories[0].spent += amt;
+        renderAll();
+      }
+      closeQuickAddModal();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>

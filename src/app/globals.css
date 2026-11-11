@@ -1,0 +1,275 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   LIFEOS — CENTRALIZED SEMANTIC DESIGN TOKEN SYSTEM
+   Approved Default Theme: Midnight Aurora
+   Supported Themes:
+   1. midnight-aurora (Default)
+   2. pearl-studio
+   3. emerald-noir
+   4. solar-pulse
+   ============================================================================= */
+
+:root,
+[data-theme="midnight-aurora"] {
+  --bg-primary: #080D19;
+  --bg-secondary: #0D1425;
+  --surface-primary: #111A30;
+  --surface-elevated: #19243D;
+  --surface-highlight: #252F4C;
+  --primary-violet: #8B5CF6;
+  --primary-violet-light: #A78BFA;
+  --cyan-accent: #35D6E8;
+  --emerald-success: #36D6A1;
+  --warning-amber: #F4B860;
+  --danger-coral: #FF7185;
+  --religious-gold: #D5B978;
+  --text-primary: #F6F7FF;
+  --text-secondary: #A9B4D0;
+  --text-muted: #74819D;
+
+  /* Borders, Dividers, Overlays, Inputs, Modals */
+  --border-subtle: rgba(169, 180, 208, 0.12);
+  --border-elevated: rgba(167, 139, 250, 0.24);
+  --border-gold: rgba(213, 185, 120, 0.32);
+  --divider-color: rgba(169, 180, 208, 0.08);
+  --modal-backdrop: rgba(4, 7, 15, 0.78);
+  --input-bg: rgba(13, 20, 37, 0.85);
+  --glass-surface: rgba(17, 26, 48, 0.78);
+  --shadow-elevated: 0 20px 50px -12px rgba(4, 7, 16, 0.72);
+  --glow-primary: 0 0 28px rgba(139, 92, 246, 0.28);
+  --glow-gold: 0 0 24px rgba(213, 185, 120, 0.2);
+}
+
+[data-theme="pearl-studio"] {
+  --bg-primary: #F3F6FC;
+  --bg-secondary: #E8EEF9;
+  --surface-primary: #FFFFFF;
+  --surface-elevated: #F8FAFF;
+  --surface-highlight: #DDE6F7;
+  --primary-violet: #6D28D9;
+  --primary-violet-light: #7C3AED;
+  --cyan-accent: #0891B2;
+  --emerald-success: #059669;
+  --warning-amber: #D97706;
+  --danger-coral: #E11D48;
+  --religious-gold: #9A7228;
+  --text-primary: #0B132B;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+
+  --border-subtle: rgba(15, 23, 42, 0.1);
+  --border-elevated: rgba(109, 40, 217, 0.25);
+  --border-gold: rgba(154, 114, 40, 0.3);
+  --divider-color: rgba(15, 23, 42, 0.07);
+  --modal-backdrop: rgba(15, 23, 42, 0.55);
+  --input-bg: #F1F5F9;
+  --glass-surface: rgba(255, 255, 255, 0.88);
+  --shadow-elevated: 0 18px 40px -12px rgba(15, 23, 42, 0.12);
+  --glow-primary: 0 0 22px rgba(109, 40, 217, 0.18);
+  --glow-gold: 0 0 20px rgba(154, 114, 40, 0.15);
+}
+
+[data-theme="emerald-noir"] {
+  --bg-primary: #05100D;
+  --bg-secondary: #091B16;
+  --surface-primary: #0E261F;
+  --surface-elevated: #15352B;
+  --surface-highlight: #1E473A;
+  --primary-violet: #10B981;
+  --primary-violet-light: #34D399;
+  --cyan-accent: #2DD4BF;
+  --emerald-success: #36D6A1;
+  --warning-amber: #F4B860;
+  --danger-coral: #FF7185;
+  --religious-gold: #D5B978;
+  --text-primary: #ECFDF5;
+  --text-secondary: #A7F3D0;
+  --text-muted: #6EE7B7;
+
+  --border-subtle: rgba(167, 243, 208, 0.14);
+  --border-elevated: rgba(16, 185, 129, 0.3);
+  --border-gold: rgba(213, 185, 120, 0.35);
+  --divider-color: rgba(167, 243, 208, 0.08);
+  --modal-backdrop: rgba(3, 10, 8, 0.8);
+  --input-bg: rgba(9, 27, 22, 0.9);
+  --glass-surface: rgba(14, 38, 31, 0.82);
+  --shadow-elevated: 0 20px 50px -12px rgba(2, 8, 6, 0.8);
+  --glow-primary: 0 0 28px rgba(16, 185, 129, 0.25);
+  --glow-gold: 0 0 24px rgba(213, 185, 120, 0.22);
+}
+
+[data-theme="solar-pulse"] {
+  --bg-primary: #120C08;
+  --bg-secondary: #1C130E;
+  --surface-primary: #261A13;
+  --surface-elevated: #33231A;
+  --surface-highlight: #453024;
+  --primary-violet: #F59E0B;
+  --primary-violet-light: #FBBF24;
+  --cyan-accent: #38BDF8;
+  --emerald-success: #36D6A1;
+  --warning-amber: #F4B860;
+  --danger-coral: #FF7185;
+  --religious-gold: #E5C158;
+  --text-primary: #FFFBEB;
+  --text-secondary: #FDE68A;
+  --text-muted: #D97706;
+
+  --border-subtle: rgba(253, 230, 138, 0.14);
+  --border-elevated: rgba(245, 158, 11, 0.32);
+  --border-gold: rgba(229, 193, 88, 0.36);
+  --divider-color: rgba(253, 230, 138, 0.08);
+  --modal-backdrop: rgba(12, 8, 5, 0.82);
+  --input-bg: rgba(28, 19, 14, 0.9);
+  --glass-surface: rgba(38, 26, 19, 0.82);
+  --shadow-elevated: 0 20px 50px -12px rgba(10, 6, 4, 0.82);
+  --glow-primary: 0 0 28px rgba(245, 158, 11, 0.26);
+  --glow-gold: 0 0 24px rgba(229, 193, 88, 0.24);
+}
+
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-surface-primary: var(--surface-primary);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-highlight: var(--surface-highlight);
+  --color-primary-violet: var(--primary-violet);
+  --color-primary-violet-light: var(--primary-violet-light);
+  --color-cyan-accent: var(--cyan-accent);
+  --color-emerald-success: var(--emerald-success);
+  --color-warning-amber: var(--warning-amber);
+  --color-danger-coral: var(--danger-coral);
+  --color-religious-gold: var(--religious-gold);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-arabic), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Tabular numerals for financial values and counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Verified Quranic Typography styling */
+.quran-uthmani-text {
+  font-family: var(--font-quran), var(--font-arabic), serif;
+  line-height: 2.35;
+  letter-spacing: 0;
+  word-spacing: 2px;
+}
+
+/* Restrained Glassmorphism & Layered Surfaces */
+.lifeos-card {
+  background: var(--surface-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 22px;
+  box-shadow: var(--shadow-elevated);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+.lifeos-card-elevated {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-elevated);
+  border-radius: 22px;
+  box-shadow: var(--shadow-elevated), var(--glow-primary);
+}
+
+.lifeos-card-deen {
+  background: linear-gradient(155deg, var(--surface-primary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--border-gold);
+  border-radius: 22px;
+  box-shadow: var(--shadow-elevated), var(--glow-gold);
+}
+
+.lifeos-glass-dock {
+  background: var(--glass-surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-elevated);
+  box-shadow: var(--shadow-elevated), var(--glow-primary);
+}
+
+.lifeos-input {
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 15px;
+  min-height: 44px;
+  padding: 0.625rem 0.9rem;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.lifeos-input:focus {
+  outline: none;
+  border-color: var(--primary-violet);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.22);
+}
+
+/* Time-of-day Atmospheric Ambient Gradients */
+.aurora-ambient-morning {
+  background-image: radial-gradient(
+      ellipse 80% 50% at 85% -10%,
+      rgba(53, 214, 232, 0.16),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at 15% 5%,
+      rgba(139, 92, 246, 0.18),
+      transparent 70%
+    );
+}
+
+.aurora-ambient-afternoon {
+  background-image: radial-gradient(
+      ellipse 80% 50% at 80% -10%,
+      rgba(139, 92, 246, 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 45% at 15% 10%,
+      rgba(54, 214, 161, 0.14),
+      transparent 70%
+    );
+}
+
+.aurora-ambient-evening {
+  background-image: radial-gradient(
+      ellipse 85% 55% at 80% -10%,
+      rgba(139, 92, 246, 0.24),
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 65% 45% at 20% 5%,
+      rgba(213, 185, 120, 0.14),
+      transparent 70%
+    );
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
