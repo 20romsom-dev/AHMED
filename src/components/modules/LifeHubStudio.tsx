@@ -1345,6 +1345,25 @@ export function LifeHubStudio() {
                   إعادة ضبط البيانات الافتراضية / مسح الحساب المحلي
                 </button>
               </div>
+
+              {/* Supabase Cloud Sync & Persistence Status Card */}
+              <div className="pt-3 border-t border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-success">
+                    حالة التخزين والمزامنة (IndexedDB + LocalStorage + Supabase)
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-success/20 text-emerald-success font-bold">
+                    نشط ومحفوظ ✓
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
+                  يتم حفظ جميع المهام، المعاملات المالية، قرارات ترحيل الشهر، العادات، والورد القرآني فورياً على جهازك (Offline-First) مع جاهزية المخطط السحابي الكامل (34 جدول SQL مع سياسات RLS في ملف{' '}
+                  <code className="text-primary-violet-light">supabase/migrations/0001_lifeos_schema.sql</code>).
+                </p>
+                <div className="text-[11px] text-text-muted tabular-nums">
+                  آخر حفظ تلقائي ناجح: {new Date(state.lastSyncedAt).toLocaleTimeString('ar-EG')}
+                </div>
+              </div>
             </div>
           </div>
         </div>

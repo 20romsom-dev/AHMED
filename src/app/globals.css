@@ -157,6 +157,15 @@ body {
   font-family: var(--font-arabic), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  text-align: right;
+}
+
+html[dir="rtl"] body,
+html[dir="rtl"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  direction: rtl;
+  text-align: right;
 }
 
 /* Tabular numerals for financial values and counters */

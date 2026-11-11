@@ -40,12 +40,12 @@ export default function LifeOSMasterPage() {
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 pt-5">
         {/* Top Utility Strip for Onboarding Tour */}
-        <div className="flex items-center justify-between mb-3 text-xs text-text-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px] sm:text-xs text-text-muted text-right">
           <span>نظام التشغيل الشخصي الذكي • الهوية المعتمدة: Midnight Aurora</span>
           <button
             type="button"
             onClick={() => setOnboardingOpen(true)}
-            className="inline-flex items-center gap-1 text-primary-violet-light hover:underline"
+            className="inline-flex items-center gap-1 text-primary-violet-light hover:underline font-semibold shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>جولة التهيئة السريعة</span>

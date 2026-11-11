@@ -278,36 +278,36 @@ export function AppShellOverlays({
   return (
     <>
       {/* Top Sticky App Bar */}
-      <header className="sticky top-0 z-30 bg-bg-primary/80 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-violet via-cyan-accent to-emerald-success p-0.5 shadow-md">
+      <header className="sticky top-0 z-30 bg-bg-primary/85 backdrop-blur-xl border-b border-white/10 px-3 sm:px-6 py-2.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-2xl bg-gradient-to-br from-primary-violet via-cyan-accent to-emerald-success p-0.5 shadow-md">
               <div className="w-full h-full bg-bg-primary rounded-[14px] flex items-center justify-center font-bold text-primary-violet-light">
                 L
               </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-tight text-text-primary">
+            <div className="min-w-0 text-right">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-sm sm:text-base tracking-tight text-text-primary">
                   LifeOS
                 </span>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary-violet/20 text-primary-violet-light">
+                <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-primary-violet/20 text-primary-violet-light whitespace-nowrap">
                   حياتك كلها... بتنظيم أذكى
                 </span>
               </div>
-              <div className="text-[11px] text-text-muted flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-success inline-block" />
-                <span>يعمل دون اتصال (Offline-First PWA) • محفوظ محلياً</span>
+              <div className="text-[10px] sm:text-[11px] text-text-muted flex items-center gap-1.5 truncate">
+                <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-success inline-block" />
+                <span className="truncate">يعمل دون اتصال • محفوظ تلقائياً</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
               aria-label="البحث الشامل"
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-surface-primary hover:bg-surface-elevated border border-white/10 text-xs text-text-secondary min-h-[42px]"
+              className="inline-flex items-center justify-center gap-2 px-2.5 sm:px-3.5 py-2 rounded-full bg-surface-primary hover:bg-surface-elevated border border-white/10 text-xs text-text-secondary min-h-[40px] min-w-[40px]"
             >
               <Search className="w-4 h-4 text-cyan-accent" />
               <span className="hidden sm:inline">بحث شامل وأوامر سريعة...</span>
@@ -317,21 +317,21 @@ export function AppShellOverlays({
               type="button"
               onClick={() => setAiModalOpen(true)}
               aria-label="المساعد الشخصي الذكي"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-primary-violet/20 hover:bg-primary-violet/30 border border-primary-violet/50 text-xs text-primary-violet-light font-semibold min-h-[42px]"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-full bg-primary-violet/20 hover:bg-primary-violet/30 border border-primary-violet/50 text-[11px] sm:text-xs text-primary-violet-light font-semibold min-h-[40px] whitespace-nowrap"
             >
-              <Bot className="w-4 h-4" />
-              <span>مساعد الذكاء</span>
+              <Bot className="w-4 h-4 shrink-0" />
+              <span>المساعد الذكي</span>
             </button>
 
             <button
               type="button"
               onClick={() => setNotifOpen((v) => !v)}
               aria-label="مركز الإشعارات"
-              className="relative p-2.5 rounded-full bg-surface-primary hover:bg-surface-elevated border border-white/10 text-text-secondary min-h-[42px] min-w-[42px] flex items-center justify-center"
+              className="relative p-2 rounded-full bg-surface-primary hover:bg-surface-elevated border border-white/10 text-text-secondary min-h-[40px] min-w-[40px] flex items-center justify-center"
             >
               <Bell className="w-4 h-4" />
               {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-danger-coral text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                <span className="absolute -top-1 -left-1 w-4.5 h-4.5 rounded-full bg-danger-coral text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
                   {unreadNotifCount}
                 </span>
               )}
@@ -571,7 +571,7 @@ export function AppShellOverlays({
       </AnimatePresence>
 
       {/* Contextual Floating Action Button (FAB) */}
-      <div className="fixed bottom-24 left-5 z-40">
+      <div className="fixed bottom-24 left-4 sm:left-6 z-40">
         <AnimatePresence>
           {fabMenuOpen && (
             <motion.div
@@ -598,10 +598,10 @@ export function AppShellOverlays({
           type="button"
           onClick={() => setFabMenuOpen((o) => !o)}
           aria-label="إجراءات سريعة سياقية"
-          className="w-14 h-14 rounded-full bg-gradient-to-tr from-primary-violet to-cyan-accent text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-primary-violet to-cyan-accent text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
         >
           <Plus
-            className={`w-6 h-6 transition-transform duration-200 ${
+            className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-200 ${
               fabMenuOpen ? 'rotate-45' : ''
             }`}
           />
@@ -611,17 +611,22 @@ export function AppShellOverlays({
       {/* Floating Bottom Navigation Dock (5 Approved Primary Destinations) */}
       <nav
         aria-label="التنقل الرئيسي في LifeOS"
-        className="fixed bottom-4 inset-x-4 z-40 max-w-xl mx-auto lifeos-glass-dock rounded-full p-1.5"
+        className="fixed bottom-3 inset-x-3 sm:inset-x-4 z-40 max-w-xl mx-auto lifeos-glass-dock rounded-3xl sm:rounded-full p-1.5"
       >
         <div className="grid grid-cols-5 gap-1">
           {(
             [
-              { id: 'home', labelAr: 'الرئيسية', icon: Home },
-              { id: 'planner', labelAr: 'التخطيط', icon: Calendar },
-              { id: 'finance', labelAr: 'المالية', icon: Wallet },
-              { id: 'wellbeing', labelAr: 'العادات والصحة', icon: HeartPulse },
-              { id: 'lifehub', labelAr: 'حياتي', icon: Compass },
-            ] as { id: NavTabId; labelAr: string; icon: React.ComponentType<{ className?: string }> }[]
+              { id: 'home', labelAr: 'الرئيسية', shortAr: 'الرئيسية', icon: Home },
+              { id: 'planner', labelAr: 'التخطيط', shortAr: 'التخطيط', icon: Calendar },
+              { id: 'finance', labelAr: 'المالية', shortAr: 'المالية', icon: Wallet },
+              { id: 'wellbeing', labelAr: 'العادات والصحة', shortAr: 'العادات', icon: HeartPulse },
+              { id: 'lifehub', labelAr: 'حياتي', shortAr: 'حياتي', icon: Compass },
+            ] as {
+              id: NavTabId;
+              labelAr: string;
+              shortAr: string;
+              icon: React.ComponentType<{ className?: string }>;
+            }[]
           ).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -630,7 +635,7 @@ export function AppShellOverlays({
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
-                className={`relative py-2 px-1 rounded-full flex flex-col items-center justify-center gap-1 transition-all min-h-[52px] ${
+                className={`relative py-2 px-1 rounded-2xl sm:rounded-full flex flex-col items-center justify-center gap-1 transition-all min-h-[52px] ${
                   isActive
                     ? 'text-white font-bold'
                     : 'text-text-secondary hover:text-text-primary'
@@ -639,12 +644,15 @@ export function AppShellOverlays({
                 {isActive && (
                   <motion.div
                     layoutId="lifeos-active-dock-pill"
-                    className="absolute inset-0 rounded-full bg-primary-violet/90 -z-10 shadow-md"
+                    className="absolute inset-0 rounded-2xl sm:rounded-full bg-primary-violet/90 -z-10 shadow-md"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}
-                <Icon className="w-4 h-4" />
-                <span className="text-[11px] leading-none truncate max-w-full px-1">
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="text-[11px] leading-tight whitespace-nowrap sm:hidden">
+                  {item.shortAr}
+                </span>
+                <span className="hidden sm:inline text-[11px] leading-tight whitespace-nowrap px-1">
                   {item.labelAr}
                 </span>
               </button>
