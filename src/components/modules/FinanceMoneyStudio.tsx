@@ -3,34 +3,74 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  ArrowLeftRight,
+  Calendar,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Edit3,
   Landmark,
   Layers,
   PiggyBank,
+  Plus,
   Receipt,
   RefreshCw,
   Scale,
   Search,
   ShieldCheck,
+  Sparkles,
   Trash2,
-  TrendingDown,
-  TrendingUp,
   Wallet,
 } from 'lucide-react';
 import { useLifeOS } from '@/context/LifeOSContext';
-import { formatMinorUnits, toMinorUnits } from '@/domain/finance/engine';
+import {
+  CategoryBudgetStatus,
+  computePeriodSummary,
+  formatMinorUnits,
+  toMinorUnits,
+} from '@/domain/finance/engine';
 import {
   CarryoverDecisionMode,
   CategoryCarryoverInput,
+  FinancialTransaction,
   TransactionType,
 } from '@/domain/types';
+import {
+  TransactionPopupInitial,
+  TransactionPopupModal,
+} from './finance/TransactionPopupModal';
+import { CategoryDetailModal } from './finance/CategoryDetailModal';
+import { FinanceAnalyticsBar } from './finance/FinanceAnalyticsBar';
 
 interface FinanceMoneyStudioProps {
   externalWizardOpen?: boolean;
   onCloseExternalWizard?: () => void;
+}
+
+const ARABIC_MONTHS: Record<string, string> = {
+  '01': 'يناير',
+  '02': 'فبراير',
+  '03': 'مارس',
+  '04': 'أبريل',
+  '05': 'مايو',
+  '06': 'يونيو',
+  '07': 'يوليو',
+  '08': 'أغسطس',
+  '09': 'سبتمبر',
+  '10': 'أكتوبر',
+  '11': 'نوفمبر',
+  '12': 'ديسمبر',
+};
+
+function shiftPeriodKey(periodKey: string, deltaMonths: number): string {
+  const [yStr, mStr] = periodKey.split('-');
+  const d = new Date(parseInt(yStr, 10), parseInt(mStr, 10) - 1 + deltaMonths, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatPeriodLabel(periodKey: string): string {
+  const [y, m] = periodKey.split('-');
+  return `${ARABIC_MONTHS[m] || m} ${y}`;
 }
 
 export function FinanceMoneyStudio({
@@ -40,13 +80,7 @@ export function FinanceMoneyStudio({
   const {
     state,
     currentPeriodSummary,
-    previousPeriodSummary,
-    prevPeriodKey,
-    isPrevMonthClosed,
     setActivePeriodKey,
-    addTransaction,
-    updateTransaction,
-    deleteTransaction,
     addCategory,
     updateCategory,
     updateCategoryBudget,
@@ -55,38 +89,106 @@ export function FinanceMoneyStudio({
     archiveAccount,
     reconcileAccount,
     confirmMonthlyRollover,
+    addIncomeSource,
+    deleteIncomeSource,
+    addSavingsGoal,
+    contributeToSavingsGoal,
+    addDebtRecord,
+    payDebtInstallment,
   } = useLifeOS();
 
   const [subView, setSubView] = useState<
     'overview' | 'budgets' | 'transactions' | 'accounts' | 'closing'
   >(externalWizardOpen ? 'closing' : 'overview');
 
-  React.useEffect(() => {
-    if (externalWizardOpen) {
-      setSubView('closing');
-    }
-  }, [externalWizardOpen]);
-
-  const todayISO = new Date().toISOString().slice(0, 10);
-
-  // Transaction form state
-  const [txType, setTxType] = useState<TransactionType>('expense');
-  const [txAmount, setTxAmount] = useState('');
-  const [txAccountId, setTxAccountId] = useState(state.accounts[0]?.id || 'acc_bank_main');
-  const [txToAccountId, setTxToAccountId] = useState(
-    state.accounts[1]?.id || 'acc_cash_wallet'
+  // Dynamic period keys: active -> next, and list of surrounding 12 months
+  const nextPeriodKey = useMemo(
+    () => shiftPeriodKey(state.activePeriodKey, 1),
+    [state.activePeriodKey]
   );
-  const [txCategoryId, setTxCategoryId] = useState<string>('cat_food');
-  const [txUncategorized, setTxUncategorized] = useState(false);
-  const [txDesc, setTxDesc] = useState('');
-  const [txDate, setTxDate] = useState(todayISO);
 
-  // Transaction ledger search, filter & inline edit state
+  const availablePeriods = useMemo(() => {
+    const set = new Set<string>();
+    for (let i = -4; i <= 4; i++) {
+      set.add(shiftPeriodKey(state.activePeriodKey, i));
+    }
+    for (const tx of state.transactions) {
+      set.add(tx.periodKey);
+    }
+    return Array.from(set).sort().reverse();
+  }, [state.activePeriodKey, state.transactions]);
+
+  // Rollover target direction: export activePeriodKey -> nextPeriodKey by default!
+  const [customRolloverFromKey, setCustomRolloverFromKey] = useState<string | null>(null);
+  const rolloverFromKey = customRolloverFromKey ?? state.activePeriodKey;
+
+  const rolloverToKey = useMemo(
+    () => shiftPeriodKey(rolloverFromKey, 1),
+    [rolloverFromKey]
+  );
+
+  const rolloverSourceSummary = useMemo(
+    () =>
+      computePeriodSummary({
+        periodKey: rolloverFromKey,
+        accounts: state.accounts,
+        categories: state.categories,
+        allocations: state.allocations,
+        transactions: state.transactions,
+      }),
+    [rolloverFromKey, state.accounts, state.categories, state.allocations, state.transactions]
+  );
+
+  const isRolloverDone = useMemo(
+    () => state.closingReviews.some((r) => r.fromPeriodKey === rolloverFromKey),
+    [state.closingReviews, rolloverFromKey]
+  );
+
+  // Popup Modal State (Create / Edit Transaction)
+  const [txPopupOpen, setTxPopupOpen] = useState(false);
+  const [txPopupInitial, setTxPopupInitial] = useState<TransactionPopupInitial | null>(null);
+
+  // Category Detail Modal State
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const selectedCategoryStatus: CategoryBudgetStatus | null = useMemo(() => {
+    if (!selectedCategoryId) return null;
+    return (
+      currentPeriodSummary.categoryStatuses.find((c) => c.categoryId === selectedCategoryId) ||
+      null
+    );
+  }, [selectedCategoryId, currentPeriodSummary.categoryStatuses]);
+
+  const openCreateTxPopup = (opts?: Partial<TransactionPopupInitial>) => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const defaultDate =
+      todayISO.slice(0, 7) === state.activePeriodKey
+        ? todayISO
+        : `${state.activePeriodKey}-01`;
+
+    setTxPopupInitial({
+      mode: 'create',
+      defaultType: opts?.defaultType ?? 'expense',
+      defaultCategoryId: opts?.defaultCategoryId,
+      defaultAccountId: opts?.defaultAccountId,
+      defaultAmountMajor: opts?.defaultAmountMajor,
+      defaultDescription: opts?.defaultDescription,
+      defaultDate: opts?.defaultDate ?? defaultDate,
+    });
+    setTxPopupOpen(true);
+  };
+
+  const openEditTxPopup = (tx: FinancialTransaction) => {
+    setTxPopupInitial({
+      mode: 'edit',
+      transaction: tx,
+    });
+    setTxPopupOpen(true);
+  };
+
+  // Transaction ledger search & filter
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState<'all' | TransactionType>('all');
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
-  const [editTxDesc, setEditTxDesc] = useState('');
-  const [editTxAmount, setEditTxAmount] = useState('');
+  const [txCategoryFilter, setTxCategoryFilter] = useState<string>('all');
 
   // Category creation & rename state
   const [newCatName, setNewCatName] = useState('');
@@ -95,54 +197,39 @@ export function FinanceMoneyStudio({
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editCatName, setEditCatName] = useState('');
 
-  // Account creation & reconciliation state
+  // Income source creation
+  const [showAddIncome, setShowAddIncome] = useState(false);
+  const [newIncName, setNewIncName] = useState('');
+  const [newIncAmount, setNewIncAmount] = useState('');
+  const [newIncDay, setNewIncDay] = useState('1');
+
+  // Account creation & reconciliation
   const [newAccName, setNewAccName] = useState('');
   const [newAccBalance, setNewAccBalance] = useState('5000');
   const [reconcileAccId, setReconcileAccId] = useState(state.accounts[0]?.id || 'acc_bank_main');
   const [reconcileCounted, setReconcileCounted] = useState('');
 
+  // Savings goal & debt creation
+  const [newGoalTitle, setNewGoalTitle] = useState('');
+  const [newGoalTarget, setNewGoalTarget] = useState('');
+  const [newDebtTitle, setNewDebtTitle] = useState('');
+  const [newDebtCounterparty, setNewDebtCounterparty] = useState('');
+  const [newDebtTotal, setNewDebtTotal] = useState('');
+  const [newDebtInstallment, setNewDebtInstallment] = useState('');
+
   // Monthly Closing & Carryover Wizard state
   const [decisionsMap, setDecisionsMap] = useState<
     Record<string, { mode: CarryoverDecisionMode; customMajor: string }>
-  >(() => {
-    const init: Record<string, { mode: CarryoverDecisionMode; customMajor: string }> = {};
-    for (const c of previousPeriodSummary.categoryStatuses) {
-      init[c.categoryId] = {
-        mode: c.remainingMinor > 0 ? 'full' : 'none',
-        customMajor: String(Math.max(0, Math.floor(c.remainingMinor / 100))),
-      };
-    }
-    return init;
-  });
+  >({});
+
+  const getCategoryDecision = (cat: CategoryBudgetStatus) =>
+    decisionsMap[cat.categoryId] ?? {
+      mode: (cat.remainingMinor > 0 ? 'full' : 'none') as CarryoverDecisionMode,
+      customMajor: String(Math.max(0, Math.floor(cat.remainingMinor / 100))),
+    };
+
   const [explicitApproveChecked, setExplicitApproveChecked] = useState(false);
   const [closingFeedback, setClosingFeedback] = useState<string | null>(null);
-
-  const handleAddTransaction = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!txAmount || Number(txAmount) <= 0) return;
-    const minor = toMinorUnits(txAmount);
-
-    addTransaction({
-      type: txType,
-      amountMinor: minor,
-      accountId: txAccountId,
-      toAccountId: txType === 'transfer' ? txToAccountId : null,
-      categoryId:
-        txType === 'expense' ? (txUncategorized ? null : txCategoryId) : null,
-      date: txDate,
-      description:
-        txDesc.trim() ||
-        (txType === 'transfer'
-          ? 'تحويل بين الحسابات الشخصية'
-          : txType === 'income'
-          ? 'دفعة دخل واردة'
-          : 'مصروف مسجل'),
-      notes: '',
-      isRecurring: false,
-    });
-    setTxAmount('');
-    setTxDesc('');
-  };
 
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +242,40 @@ export function FinanceMoneyStudio({
       defaultMonthlyBudgetMinor: toMinorUnits(newCatBudget || '0'),
     });
     setNewCatName('');
+  };
+
+  const handleAddIncomeSource = (e: React.FormEvent) => {
+    e.preventDefault();
+    const minor = toMinorUnits(newIncAmount);
+    if (!newIncName.trim() || minor <= 0) return;
+    addIncomeSource({
+      name: newIncName.trim(),
+      expectedAmountMinor: minor,
+      paydayOfMonth: Math.min(31, Math.max(1, parseInt(newIncDay, 10) || 1)),
+      isRecurring: true,
+      defaultAccountId: state.accounts[0]?.id || 'acc_bank_main',
+    });
+    setNewIncName('');
+    setNewIncAmount('');
+    setShowAddIncome(false);
+  };
+
+  const handleDistributeSalaryToCategories = () => {
+    const totalSalaryMinor = state.incomeSources.reduce(
+      (sum, s) => sum + s.expectedAmountMinor,
+      0
+    );
+    const activeCats = currentPeriodSummary.categoryStatuses;
+    if (totalSalaryMinor <= 0 || activeCats.length === 0) return;
+
+    const currentTotal = activeCats.reduce((s, c) => s + c.allocatedMinor, 0);
+    for (const cat of activeCats) {
+      const share =
+        currentTotal > 0
+          ? Math.round((cat.allocatedMinor / currentTotal) * totalSalaryMinor)
+          : Math.round(totalSalaryMinor / activeCats.length);
+      updateCategoryBudget(cat.categoryId, state.activePeriodKey, share);
+    }
   };
 
   const handleAddAccount = (e: React.FormEvent) => {
@@ -178,20 +299,53 @@ export function FinanceMoneyStudio({
     setReconcileCounted('');
   };
 
+  const handleAddSavingsGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetMinor = toMinorUnits(newGoalTarget);
+    if (!newGoalTitle.trim() || targetMinor <= 0) return;
+    addSavingsGoal({
+      title: newGoalTitle.trim(),
+      targetAmountMinor: targetMinor,
+      currentAmountMinor: 0,
+      color: '#36D6A1',
+    });
+    setNewGoalTitle('');
+    setNewGoalTarget('');
+  };
+
+  const handleAddDebt = (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalMinor = toMinorUnits(newDebtTotal);
+    const instMinor = toMinorUnits(newDebtInstallment);
+    if (!newDebtTitle.trim() || totalMinor <= 0) return;
+    addDebtRecord({
+      title: newDebtTitle.trim(),
+      counterparty: newDebtCounterparty.trim() || 'جهة خارجية',
+      direction: 'owed_by_me',
+      totalAmountMinor: totalMinor,
+      remainingAmountMinor: totalMinor,
+      monthlyInstallmentMinor: instMinor > 0 ? instMinor : Math.round(totalMinor / 6),
+      dueDay: 1,
+      nextDueDate: `${nextPeriodKey}-01`,
+      notes: '',
+    });
+    setNewDebtTitle('');
+    setNewDebtCounterparty('');
+    setNewDebtTotal('');
+    setNewDebtInstallment('');
+  };
+
   const handleExecuteClosing = (e: React.FormEvent) => {
     e.preventDefault();
     if (!explicitApproveChecked) {
-      setClosingFeedback('يرجى التأشير على مربع التأكيد الصريح قبل تنفيذ الترحيل الشهري.');
+      setClosingFeedback('يرجى التأشير على مربع التأكيد الصريح قبل تنفيذ ترحيل الرصيد للشهر التالي.');
       return;
     }
 
     try {
-      const inputs: CategoryCarryoverInput[] = previousPeriodSummary.categoryStatuses.map(
+      const inputs: CategoryCarryoverInput[] = rolloverSourceSummary.categoryStatuses.map(
         (cat) => {
-          const entry = decisionsMap[cat.categoryId] || {
-            mode: 'none' as CarryoverDecisionMode,
-            customMajor: '0',
-          };
+          const entry = getCategoryDecision(cat);
           return {
             categoryId: cat.categoryId,
             mode: entry.mode,
@@ -201,13 +355,15 @@ export function FinanceMoneyStudio({
         }
       );
 
-      const review = confirmMonthlyRollover(prevPeriodKey, state.activePeriodKey, inputs);
+      const review = confirmMonthlyRollover(rolloverFromKey, rolloverToKey, inputs);
       setClosingFeedback(
-        `تم إغلاق شهر ${prevPeriodKey} بنجاح وترحيل ${formatMinorUnits(
+        `تم إغلاق شهر ${formatPeriodLabel(rolloverFromKey)} وتصدير ${formatMinorUnits(
           review.totalCarryoverMinor,
           state.profile.currency
-        )} إلى ميزانيات شهر ${state.activePeriodKey} دون المساس بأرصدة الحسابات الفعلية.`
+        )} إلى ميزانيات شهر ${formatPeriodLabel(rolloverToKey)} بنجاح.`
       );
+      setActivePeriodKey(rolloverToKey);
+      setExplicitApproveChecked(false);
       if (onCloseExternalWizard) onCloseExternalWizard();
     } catch (err) {
       setClosingFeedback(err instanceof Error ? err.message : 'تعذر إتمام الإغلاق الشهري');
@@ -215,15 +371,17 @@ export function FinanceMoneyStudio({
   };
 
   const exportTransactionsCSV = () => {
-    const headers = ['Date,Period,Type,Description,Amount_EGP,Account,Category'];
-    const rows = state.transactions.map((t) => {
-      const amtMajor = (t.amountMinor / 100).toFixed(2);
-      const accName = state.accounts.find((a) => a.id === t.accountId)?.name || t.accountId;
-      const catName = t.categoryId
-        ? state.categories.find((c) => c.id === t.categoryId)?.name || t.categoryId
-        : 'غير مصنف';
-      return `${t.date},${t.periodKey},${t.type},"${t.description}",${amtMajor},"${accName}","${catName}"`;
-    });
+    const headers = ['Date,Period,Type,Description,Amount,Account,Category,Notes'];
+    const rows = state.transactions
+      .filter((t) => t.periodKey === state.activePeriodKey)
+      .map((t) => {
+        const amtMajor = (t.amountMinor / 100).toFixed(2);
+        const accName = state.accounts.find((a) => a.id === t.accountId)?.name || t.accountId;
+        const catName = t.categoryId
+          ? state.categories.find((c) => c.id === t.categoryId)?.name || t.categoryId
+          : 'غير مصنف';
+        return `${t.date},${t.periodKey},${t.type},"${t.description}",${amtMajor},"${accName}","${catName}","${t.notes || ''}"`;
+      });
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers, ...rows].join('\n');
     const encoded = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -236,79 +394,130 @@ export function FinanceMoneyStudio({
 
   const periodTransactions = useMemo(() => {
     const q = txSearch.trim().toLowerCase();
-    return state.transactions.filter((t) => {
-      if (t.periodKey !== state.activePeriodKey) return false;
-      if (txTypeFilter !== 'all' && t.type !== txTypeFilter) return false;
-      if (!q) return true;
-      return t.description.toLowerCase().includes(q);
-    });
-  }, [state.transactions, state.activePeriodKey, txSearch, txTypeFilter]);
+    return state.transactions
+      .filter((t) => {
+        if (t.periodKey !== state.activePeriodKey) return false;
+        if (txTypeFilter !== 'all' && t.type !== txTypeFilter) return false;
+        if (txCategoryFilter !== 'all') {
+          if (txCategoryFilter === 'uncategorized' && t.categoryId !== null) return false;
+          if (txCategoryFilter !== 'uncategorized' && t.categoryId !== txCategoryFilter)
+            return false;
+        }
+        if (!q) return true;
+        return (
+          t.description.toLowerCase().includes(q) ||
+          (t.notes && t.notes.toLowerCase().includes(q))
+        );
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [state.transactions, state.activePeriodKey, txSearch, txTypeFilter, txCategoryFilter]);
 
   return (
-    <div className="space-y-5 pb-28">
-      {/* Header & Period Switcher */}
-      <div className="lifeos-card p-5 flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-5 pb-32">
+      {/* Header & Dynamic Month Stepper */}
+      <div className="lifeos-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 text-xs text-emerald-success font-semibold">
             <ShieldCheck className="w-4 h-4" />
-            <span>محرك محاسبة دقيق بوحدات العملة الصغرى (بدون أخطاء الفاصلة العائمة)</span>
+            <span>منظم المصاريف والراتب الشهري • دقة محاسبية كاملة</span>
           </div>
-          <h1 className="text-2xl font-bold text-text-primary mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-text-primary mt-1">
             استوديو المالية والميزانيات الشهرية
           </h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={state.activePeriodKey}
-            onChange={(e) => setActivePeriodKey(e.target.value)}
-            aria-label="اختيار الشهر المالي"
-            className="lifeos-input text-xs font-bold tabular-nums"
+          {/* Month Stepper */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-full bg-bg-secondary border border-white/10">
+            <button
+              type="button"
+              onClick={() => setActivePeriodKey(shiftPeriodKey(state.activePeriodKey, -1))}
+              aria-label="الشهر السابق"
+              className="p-2 rounded-full hover:bg-surface-highlight text-text-secondary hover:text-text-primary min-w-[36px] min-h-[36px] flex items-center justify-center"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <select
+              value={state.activePeriodKey}
+              onChange={(e) => setActivePeriodKey(e.target.value)}
+              aria-label="اختيار الشهر المالي"
+              className="bg-transparent text-xs font-bold text-text-primary px-2 py-1 focus:outline-none cursor-pointer"
+            >
+              {availablePeriods.map((pk) => (
+                <option key={pk} value={pk} className="bg-surface-primary text-text-primary">
+                  {formatPeriodLabel(pk)} ({pk})
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setActivePeriodKey(shiftPeriodKey(state.activePeriodKey, 1))}
+              aria-label="الشهر التالي"
+              className="p-2 rounded-full hover:bg-surface-highlight text-text-secondary hover:text-text-primary min-w-[36px] min-h-[36px] flex items-center justify-center"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => openCreateTxPopup({ defaultType: 'expense' })}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-primary-violet hover:bg-primary-violet-light text-xs font-bold text-white shadow-md transition-all min-h-[44px]"
           >
-            <option value="2026-11">نوفمبر 2026 (2026-11)</option>
-            <option value="2026-10">أكتوبر 2026 (2026-10)</option>
-          </select>
+            <Plus className="w-4 h-4" />
+            <span>عملية جديدة</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCustomRolloverFromKey(state.activePeriodKey);
+              setSubView('closing');
+            }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-emerald-success/15 hover:bg-emerald-success/25 border border-emerald-success/40 text-xs font-bold text-emerald-success transition-all min-h-[44px]"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>ترحيل للشهر التالي</span>
+          </button>
 
           <button
             type="button"
             onClick={exportTransactionsCSV}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-surface-highlight hover:bg-primary-violet text-xs text-text-primary transition-all min-h-[44px]"
+            title="تصدير معاملات الشهر CSV"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-surface-highlight hover:bg-primary-violet/40 text-xs text-text-primary transition-all min-h-[44px]"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>تصدير CSV</span>
+            <span className="hidden sm:inline">CSV</span>
           </button>
         </div>
       </div>
 
       {/* Sub-navigation pills */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
         {(
           [
-            { id: 'overview', label: 'اللوحة المالية والراتب', icon: Wallet },
-            { id: 'budgets', label: 'ميزانيات الفئات', icon: Layers },
-            { id: 'transactions', label: 'سجل المعاملات والتحويلات', icon: Receipt },
-            { id: 'accounts', label: 'الحسابات والادخار والمطابقة', icon: Landmark },
+            { id: 'overview', label: 'اللوحة والراتب والفئات', icon: Wallet },
+            { id: 'budgets', label: 'إدارة الفئات والميزانيات', icon: Layers },
+            { id: 'transactions', label: 'سجل الصادر والوارد', icon: Receipt },
+            { id: 'accounts', label: 'الحسابات والادخار والأقساط', icon: Landmark },
             {
               id: 'closing',
-              label: isPrevMonthClosed
-                ? 'سجل الإغلاق الشهري ✓'
-                : `معالج إغلاق الشهر (${prevPeriodKey}) • معلق`,
+              label: isRolloverDone
+                ? `ترحيل ${formatPeriodLabel(rolloverFromKey)} ✓`
+                : `تصدير الرصيد لـ ${formatPeriodLabel(rolloverToKey)}`,
               icon: RefreshCw,
             },
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
-          const isClosingAlert = tab.id === 'closing' && !isPrevMonthClosed;
           return (
             <button
               key={tab.id}
               type="button"
               onClick={() => setSubView(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition-all min-h-[44px] ${
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition-all min-h-[44px] shrink-0 ${
                 subView === tab.id
                   ? 'bg-primary-violet text-white shadow-md'
-                  : isClosingAlert
-                  ? 'bg-warning-amber/20 text-warning-amber border border-warning-amber/50'
                   : 'bg-surface-primary text-text-secondary hover:text-text-primary border border-white/10'
               }`}
             >
@@ -319,48 +528,51 @@ export function FinanceMoneyStudio({
         })}
       </div>
 
-      {/* Strict Separation KPI Cards: Cash Balance vs Budget Availability */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="lifeos-card p-4 border-emerald-success/30">
-          <div className="text-xs text-text-muted">السيولة النقدية الفعلية بالحسابات</div>
+          <div className="text-xs text-text-muted">السيولة النقدية الفعلية</div>
           <div className="text-lg sm:text-xl font-bold text-emerald-success tabular-nums mt-1">
             {formatMinorUnits(
               currentPeriodSummary.totalAvailableCashMinor,
               state.profile.currency
             )}
           </div>
-          <div className="text-[11px] text-text-muted mt-0.5">
-            تُحسب من دفتر الأستاذ للحسابات فقط
-          </div>
+          <div className="text-[11px] text-text-muted mt-0.5">إجمالي أرصدة الحسابات</div>
         </div>
 
         <div className="lifeos-card p-4">
-          <div className="text-xs text-text-muted">إجمالي الدخل ({state.activePeriodKey})</div>
+          <div className="text-xs text-text-muted">الوارد ({formatPeriodLabel(state.activePeriodKey)})</div>
           <div className="text-lg sm:text-xl font-bold text-text-primary tabular-nums mt-1">
             {formatMinorUnits(currentPeriodSummary.totalIncomeMinor, state.profile.currency)}
           </div>
-          <div className="text-[11px] text-emerald-success mt-0.5 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
-            <span>شامل الراتب والدخل الإضافي</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => openCreateTxPopup({ defaultType: 'income' })}
+            className="text-[11px] text-emerald-success mt-0.5 inline-flex items-center gap-1 hover:underline"
+          >
+            <Plus className="w-3 h-3" />
+            <span>إضافة راتب / دخل وارد</span>
+          </button>
         </div>
 
         <div className="lifeos-card p-4">
-          <div className="text-xs text-text-muted">إجمالي المصروفات الفعلية</div>
+          <div className="text-xs text-text-muted">الصادر (المصروفات)</div>
           <div className="text-lg sm:text-xl font-bold text-danger-coral tabular-nums mt-1">
             {formatMinorUnits(currentPeriodSummary.totalExpenseMinor, state.profile.currency)}
           </div>
-          <div className="text-[11px] text-text-muted tabular-nums mt-0.5">
-            منها غير مصنف:{' '}
-            {formatMinorUnits(
-              currentPeriodSummary.uncategorizedExpenseMinor,
-              state.profile.currency
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => openCreateTxPopup({ defaultType: 'expense' })}
+            className="text-[11px] text-danger-coral mt-0.5 inline-flex items-center gap-1 hover:underline"
+          >
+            <Plus className="w-3 h-3" />
+            <span>تسجيل مصروف سريع</span>
+          </button>
         </div>
 
         <div className="lifeos-card p-4">
-          <div className="text-xs text-text-muted">إجمالي الميزانيات المخصصة (+المرحل)</div>
+          <div className="text-xs text-text-muted">الميزانية المخصصة (+المرحل)</div>
           <div className="text-lg sm:text-xl font-bold text-primary-violet-light tabular-nums mt-1">
             {formatMinorUnits(
               currentPeriodSummary.totalEffectiveBudgetMinor,
@@ -368,7 +580,7 @@ export function FinanceMoneyStudio({
             )}
           </div>
           <div className="text-[11px] text-text-muted tabular-nums mt-0.5">
-            مرحل معتمد:{' '}
+            مرحل من السابق:{' '}
             {formatMinorUnits(
               currentPeriodSummary.totalCarryoverBudgetMinor,
               state.profile.currency
@@ -377,7 +589,7 @@ export function FinanceMoneyStudio({
         </div>
 
         <div className="lifeos-card p-4 border-cyan-accent/30 col-span-2 lg:col-span-1">
-          <div className="text-xs text-text-muted">المتبقي في ميزانيات الفئات</div>
+          <div className="text-xs text-text-muted">المتبقي القابل للترحيل</div>
           <div className="text-lg sm:text-xl font-bold text-cyan-accent tabular-nums mt-1">
             {formatMinorUnits(
               currentPeriodSummary.totalRemainingCategoryBudgetMinor,
@@ -394,59 +606,85 @@ export function FinanceMoneyStudio({
         </div>
       </div>
 
-      {/* 1. OVERVIEW & QUICK TRANSACTION STUDIO */}
+      {/* 1. OVERVIEW: INTERACTIVE CATEGORIES + ANALYTICS + SALARY */}
       {subView === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className="lg:col-span-7 space-y-5">
-            {/* Category Utilization Progress Bars */}
-            <div className="lifeos-card p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-text-primary">
-                  حالة ميزانيات الفئات لشهر {state.activePeriodKey}
-                </h2>
+        <div className="space-y-5">
+          <FinanceAnalyticsBar
+            summary={currentPeriodSummary}
+            currency={state.profile.currency}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Interactive Category Cards */}
+            <div className="lg:col-span-7 lifeos-card p-4 sm:p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-text-primary">
+                    فئات الصرف لشهر {formatPeriodLabel(state.activePeriodKey)}
+                  </h2>
+                  <p className="text-xs text-text-muted">
+                    اضغط على أي فئة لعرض عملياتها والصرف بداخلها، أو استخدم زر «+ صرف» السريع
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setSubView('budgets')}
-                  className="text-xs text-primary-violet-light hover:underline"
+                  className="text-xs text-primary-violet-light hover:underline font-semibold"
                 >
-                  تعديل الميزانيات والفئات
+                  إدارة الفئات
                 </button>
               </div>
 
-              <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {currentPeriodSummary.categoryStatuses.map((cat) => (
                   <div
                     key={cat.categoryId}
-                    className="p-3.5 rounded-2xl bg-bg-secondary/90 border border-white/10 space-y-2"
+                    onClick={() => setSelectedCategoryId(cat.categoryId)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedCategoryId(cat.categoryId);
+                      }
+                    }}
+                    className="p-3.5 rounded-2xl bg-bg-secondary/90 hover:bg-surface-highlight/50 border border-white/10 hover:border-primary-violet/40 space-y-2.5 transition-all cursor-pointer group"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="w-3 h-3 rounded-full"
+                          className="w-3 h-3 rounded-full shrink-0"
                           style={{ backgroundColor: cat.color }}
                         />
-                        <span className="text-sm font-bold text-text-primary">
+                        <span className="text-sm font-bold text-text-primary truncate">
                           {cat.categoryName}
                         </span>
-                        {cat.carryoverMinor > 0 && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-success/15 text-emerald-success tabular-nums">
-                            + مرحل {formatMinorUnits(cat.carryoverMinor, state.profile.currency)}
-                          </span>
-                        )}
                       </div>
-                      <span className="text-xs font-semibold tabular-nums text-text-secondary">
-                        المتبقي:{' '}
-                        <strong
-                          className={
-                            cat.remainingMinor < 0 ? 'text-danger-coral' : 'text-emerald-success'
-                          }
-                        >
-                          {formatMinorUnits(cat.remainingMinor, state.profile.currency)}
-                        </strong>
-                      </span>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCreateTxPopup({
+                            defaultType: 'expense',
+                            defaultCategoryId: cat.categoryId,
+                          });
+                        }}
+                        className="px-2.5 py-1 rounded-full bg-primary-violet/20 hover:bg-primary-violet text-primary-violet-light hover:text-white text-[11px] font-bold inline-flex items-center gap-1 transition-all shrink-0"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>صرف</span>
+                      </button>
                     </div>
 
-                    <div className="h-2.5 rounded-full bg-surface-primary overflow-hidden">
+                    {cat.carryoverMinor > 0 && (
+                      <div className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-emerald-success/15 text-emerald-success tabular-nums">
+                        + مرحل من الشهر السابق:{' '}
+                        {formatMinorUnits(cat.carryoverMinor, state.profile.currency)}
+                      </div>
+                    )}
+
+                    <div className="h-2 rounded-full bg-surface-primary overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -457,13 +695,16 @@ export function FinanceMoneyStudio({
                       />
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-text-muted tabular-nums">
-                      <span>
-                        المخصص الأصلي: {formatMinorUnits(cat.allocatedMinor, state.profile.currency)}
+                    <div className="flex items-center justify-between text-[11px] tabular-nums">
+                      <span className="text-text-muted">
+                        منفق: {formatMinorUnits(cat.spentMinor, state.profile.currency)}
                       </span>
-                      <span>
-                        المنفق الفعلي: {formatMinorUnits(cat.spentMinor, state.profile.currency)} (
-                        {cat.utilizationPercent}%)
+                      <span
+                        className={`font-bold ${
+                          cat.remainingMinor < 0 ? 'text-danger-coral' : 'text-emerald-success'
+                        }`}
+                      >
+                        متبقي: {formatMinorUnits(cat.remainingMinor, state.profile.currency)}
                       </span>
                     </div>
                   </div>
@@ -471,187 +712,189 @@ export function FinanceMoneyStudio({
               </div>
             </div>
 
-            {/* Salary & Income Sources */}
-            <div className="lifeos-card p-5 space-y-3">
-              <h3 className="text-base font-bold text-text-primary">
-                مصادر الدخل والراتب الشهري
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {state.incomeSources.map((src) => (
-                  <div
-                    key={src.id}
-                    className="p-3.5 rounded-2xl bg-bg-secondary border border-white/10 space-y-1"
-                  >
-                    <div className="text-sm font-semibold text-text-primary">{src.name}</div>
-                    <div className="text-base font-bold text-emerald-success tabular-nums">
-                      {formatMinorUnits(src.expectedAmountMinor, state.profile.currency)}
-                    </div>
-                    <div className="text-[11px] text-text-muted">
-                      يوم الصرف: {src.paydayOfMonth} من كل شهر •{' '}
-                      {src.isRecurring ? 'دوري' : 'مرن'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Record Transaction Form */}
-          <div className="lg:col-span-5 lifeos-card p-5 space-y-4">
-            <h2 className="text-base font-bold text-text-primary">
-              تسجيل معاملة جديدة (مصروف / دخل / تحويل)
-            </h2>
-
-            <div className="grid grid-cols-3 gap-2 p-1 rounded-2xl bg-bg-secondary border border-white/10 text-xs">
-              {(
-                [
-                  { id: 'expense', label: 'مصروف صادر', icon: TrendingDown },
-                  { id: 'income', label: 'دخل وارد', icon: TrendingUp },
-                  { id: 'transfer', label: 'تحويل بين حساباتي', icon: ArrowLeftRight },
-                ] as const
-              ).map((t) => {
-                const Icon = t.icon;
-                return (
+            {/* Right Column: Salary & Income Sources + Quick Recent Transactions */}
+            <div className="lg:col-span-5 space-y-5">
+              {/* Salary & Income Sources */}
+              <div className="lifeos-card p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-bold text-text-primary">
+                    الراتب ومصادر الدخل الشهري
+                  </h3>
                   <button
-                    key={t.id}
                     type="button"
-                    onClick={() => setTxType(t.id)}
-                    className={`py-2.5 px-2 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-all min-h-[40px] ${
-                      txType === t.id
-                        ? 'bg-primary-violet text-white shadow'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
+                    onClick={() => setShowAddIncome((v) => !v)}
+                    className="inline-flex items-center gap-1 text-xs text-cyan-accent hover:underline font-semibold"
                   >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{t.label}</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>مصدر دخل</span>
                   </button>
-                );
-              })}
-            </div>
-
-            <form onSubmit={handleAddTransaction} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">
-                    المبلغ ({state.profile.currency})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={txAmount}
-                    onChange={(e) => setTxAmount(e.target.value)}
-                    placeholder="350.00"
-                    className="lifeos-input w-full text-sm font-bold tabular-nums"
-                    required
-                  />
                 </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">التاريخ</label>
-                  <input
-                    type="date"
-                    value={txDate}
-                    onChange={(e) => setTxDate(e.target.value)}
-                    className="lifeos-input w-full text-sm tabular-nums"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div>
-                <label className="block text-xs text-text-secondary mb-1">
-                  {txType === 'transfer' ? 'من الحساب' : 'الحساب المالي'}
-                </label>
-                <select
-                  value={txAccountId}
-                  onChange={(e) => setTxAccountId(e.target.value)}
-                  className="lifeos-input w-full text-sm"
-                >
-                  {state.accounts
-                    .filter((a) => !a.isArchived)
-                    .map((acc) => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} (
-                        {formatMinorUnits(
-                          currentPeriodSummary.accountBalancesMinor[acc.id] ?? 0,
-                          state.profile.currency
-                        )}
-                        )
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {txType === 'transfer' && (
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">
-                    إلى الحساب المستلم (لا يُحتسب مصروفاً أو دخلاً)
-                  </label>
-                  <select
-                    value={txToAccountId}
-                    onChange={(e) => setTxToAccountId(e.target.value)}
-                    className="lifeos-input w-full text-sm"
+                {showAddIncome && (
+                  <form
+                    onSubmit={handleAddIncomeSource}
+                    className="p-3 rounded-2xl bg-bg-secondary border border-cyan-accent/30 space-y-2"
                   >
-                    {state.accounts
-                      .filter((a) => !a.isArchived && a.id !== txAccountId)
-                      .map((acc) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              {txType === 'expense' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-text-secondary">فئة الميزانية</label>
-                    <label className="inline-flex items-center gap-1.5 text-xs text-cyan-accent cursor-pointer">
+                    <input
+                      type="text"
+                      value={newIncName}
+                      onChange={(e) => setNewIncName(e.target.value)}
+                      placeholder="اسم مصدر الدخل (مثلاً: راتب الشركة)"
+                      className="lifeos-input w-full text-xs"
+                      required
+                    />
+                    <div className="grid grid-cols-2 gap-2">
                       <input
-                        type="checkbox"
-                        checked={txUncategorized}
-                        onChange={(e) => setTxUncategorized(e.target.checked)}
+                        type="number"
+                        value={newIncAmount}
+                        onChange={(e) => setNewIncAmount(e.target.value)}
+                        placeholder="القيمة المتوقعة"
+                        className="lifeos-input w-full text-xs tabular-nums"
+                        required
                       />
-                      <span>مصروف غير مصنف (يخصم من الحساب فقط)</span>
-                    </label>
-                  </div>
-                  {!txUncategorized && (
-                    <select
-                      value={txCategoryId}
-                      onChange={(e) => setTxCategoryId(e.target.value)}
-                      className="lifeos-input w-full text-sm"
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={newIncDay}
+                        onChange={(e) => setNewIncDay(e.target.value)}
+                        placeholder="يوم الصرف (1-31)"
+                        className="lifeos-input w-full text-xs tabular-nums"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-2 rounded-full bg-cyan-accent text-bg-primary text-xs font-bold"
                     >
-                      {state.categories
-                        .filter((c) => !c.isArchived && c.type === 'expense')
-                        .map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                    </select>
-                  )}
-                </div>
-              )}
+                      حفظ مصدر الدخل
+                    </button>
+                  </form>
+                )}
 
-              <div>
-                <label className="block text-xs text-text-secondary mb-1">الوصف والبيان</label>
-                <input
-                  type="text"
-                  value={txDesc}
-                  onChange={(e) => setTxDesc(e.target.value)}
-                  placeholder="مثال: مشتريات البقالة أو فاتورة الكهرباء"
-                  className="lifeos-input w-full text-sm"
-                />
+                <div className="space-y-2.5">
+                  {state.incomeSources.map((src) => (
+                    <div
+                      key={src.id}
+                      className="p-3.5 rounded-2xl bg-bg-secondary border border-white/10 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-text-primary truncate">
+                          {src.name}
+                        </div>
+                        <div className="text-sm font-extrabold text-emerald-success tabular-nums">
+                          {formatMinorUnits(src.expectedAmountMinor, state.profile.currency)}
+                        </div>
+                        <div className="text-[11px] text-text-muted">
+                          يوم {src.paydayOfMonth} من كل شهر
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openCreateTxPopup({
+                              defaultType: 'income',
+                              defaultAmountMajor: String(src.expectedAmountMinor / 100),
+                              defaultDescription: src.name,
+                              defaultAccountId: src.defaultAccountId,
+                            })
+                          }
+                          className="px-3 py-2 rounded-full bg-emerald-success/20 hover:bg-emerald-success text-emerald-success hover:text-bg-primary text-xs font-bold transition-all"
+                        >
+                          استلام الآن
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteIncomeSource(src.id)}
+                          aria-label={`حذف ${src.name}`}
+                          className="p-2 rounded-full text-text-muted hover:text-danger-coral"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDistributeSalaryToCategories}
+                  className="w-full py-2.5 rounded-full bg-surface-highlight hover:bg-primary-violet/30 border border-white/10 text-xs font-semibold text-text-primary inline-flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-primary-violet-light" />
+                  <span>توزيع إجمالي الراتب تلقائياً على ميزانيات الفئات</span>
+                </button>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-full bg-primary-violet hover:bg-primary-violet-light text-white text-sm font-semibold shadow-md transition-all min-h-[44px]"
-              >
-                تسجيل المعاملة في الدفتر
-              </button>
-            </form>
+              {/* Recent Transactions Quick List (Tap to Edit in Popup!) */}
+              <div className="lifeos-card p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-text-primary">آخر العمليات المسجلة</h3>
+                  <button
+                    type="button"
+                    onClick={() => setSubView('transactions')}
+                    className="text-xs text-primary-violet-light hover:underline"
+                  >
+                    عرض الكل ({periodTransactions.length})
+                  </button>
+                </div>
+
+                {periodTransactions.length === 0 ? (
+                  <p className="text-xs text-text-muted py-4 text-center">
+                    لا توجد معاملات في شهر {formatPeriodLabel(state.activePeriodKey)} بعد.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {periodTransactions.slice(0, 5).map((tx) => {
+                      const cat = tx.categoryId
+                        ? state.categories.find((c) => c.id === tx.categoryId)
+                        : null;
+                      return (
+                        <button
+                          key={tx.id}
+                          type="button"
+                          onClick={() => openEditTxPopup(tx)}
+                          className="w-full text-right p-3 rounded-2xl bg-bg-secondary hover:bg-surface-highlight/50 border border-white/10 flex items-center justify-between gap-2 transition-all group"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-text-primary truncate">
+                              {tx.description}
+                            </div>
+                            <div className="text-[11px] text-text-muted flex items-center gap-2 mt-0.5 tabular-nums">
+                              <span>{tx.date}</span>
+                              <span>•</span>
+                              <span>
+                                {tx.type === 'income'
+                                  ? 'دخل وارد'
+                                  : tx.type === 'transfer'
+                                  ? 'تحويل'
+                                  : cat?.name || 'غير مصنف'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span
+                              className={`text-xs font-bold tabular-nums ${
+                                tx.type === 'income'
+                                  ? 'text-emerald-success'
+                                  : tx.type === 'transfer'
+                                  ? 'text-cyan-accent'
+                                  : 'text-danger-coral'
+                              }`}
+                            >
+                              {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '⇄'}{' '}
+                              {formatMinorUnits(tx.amountMinor, state.profile.currency)}
+                            </span>
+                            <Edit3 className="w-3.5 h-3.5 text-text-muted group-hover:text-cyan-accent" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -661,10 +904,10 @@ export function FinanceMoneyStudio({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           <div className="lg:col-span-8 lifeos-card p-5 space-y-4">
             <h2 className="text-base font-bold text-text-primary">
-              تخصيص ميزانيات الفئات لشهر {state.activePeriodKey}
+              تخصيص ميزانيات الفئات لشهر {formatPeriodLabel(state.activePeriodKey)}
             </h2>
             <p className="text-xs text-text-secondary">
-              تخصيص الميزانية يوزع خطتك الشهرية ولا يُعد إنفاقاً فعلياً من رصيدك النقدي.
+              يمكنك تعديل اسم الفئة، مخصصها الشهري، أو الضغط على الفئة للصرف بداخلها.
             </p>
             <div className="space-y-3">
               {currentPeriodSummary.categoryStatuses.map((cat) => (
@@ -700,9 +943,13 @@ export function FinanceMoneyStudio({
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: cat.color }}
                         />
-                        <span className="text-sm font-bold text-text-primary">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCategoryId(cat.categoryId)}
+                          className="text-sm font-bold text-text-primary hover:text-primary-violet-light"
+                        >
                           {cat.categoryName}
-                        </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -724,7 +971,7 @@ export function FinanceMoneyStudio({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-text-muted">المخصص الشهري:</label>
+                    <label className="text-xs text-text-muted">المخصص:</label>
                     <input
                       type="number"
                       defaultValue={Math.floor(cat.allocatedMinor / 100)}
@@ -797,13 +1044,19 @@ export function FinanceMoneyStudio({
         </div>
       )}
 
-      {/* 3. TRANSACTIONS LEDGER (SEARCH, FILTER, INLINE EDIT, DELETE) */}
+      {/* 3. TRANSACTIONS LEDGER (WITH FULL POPUP EDITING) */}
       {subView === 'transactions' && (
         <div className="lifeos-card p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-bold text-text-primary">
-              دفتر المعاملات الكامل لشهر {state.activePeriodKey} ({periodTransactions.length})
-            </h2>
+            <div>
+              <h2 className="text-base font-bold text-text-primary">
+                دفتر الصادر والوارد لشهر {formatPeriodLabel(state.activePeriodKey)} (
+                {periodTransactions.length})
+              </h2>
+              <p className="text-xs text-text-muted">
+                اضغط على أي معاملة لتعديل تاريخها أو ربطها بفئة أخرى أو تعديل تفاصيلها في البوب أب
+              </p>
+            </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
@@ -813,70 +1066,68 @@ export function FinanceMoneyStudio({
                   value={txSearch}
                   onChange={(e) => setTxSearch(e.target.value)}
                   placeholder="بحث في المعاملات..."
-                  className="lifeos-input pr-8 text-xs py-1.5"
+                  className="lifeos-input pr-8 text-xs py-2"
                 />
               </div>
               <select
                 value={txTypeFilter}
                 onChange={(e) => setTxTypeFilter(e.target.value as 'all' | TransactionType)}
-                className="lifeos-input text-xs py-1.5"
+                className="lifeos-input text-xs py-2"
               >
                 <option value="all">كل الأنواع</option>
-                <option value="expense">مصروفات</option>
-                <option value="income">إيرادات</option>
+                <option value="expense">صادر (مصروفات)</option>
+                <option value="income">وارد (إيرادات)</option>
                 <option value="transfer">تحويلات</option>
+              </select>
+              <select
+                value={txCategoryFilter}
+                onChange={(e) => setTxCategoryFilter(e.target.value)}
+                className="lifeos-input text-xs py-2"
+              >
+                <option value="all">كل الفئات</option>
+                {state.categories
+                  .filter((c) => !c.isArchived && c.type === 'expense')
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                <option value="uncategorized">غير مصنف</option>
               </select>
             </div>
           </div>
 
           <div className="space-y-2.5">
-            {periodTransactions.map((tx) => {
-              const acc = state.accounts.find((a) => a.id === tx.accountId);
-              const toAcc = tx.toAccountId
-                ? state.accounts.find((a) => a.id === tx.toAccountId)
-                : null;
-              const cat = tx.categoryId
-                ? state.categories.find((c) => c.id === tx.categoryId)
-                : null;
+            {periodTransactions.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-bg-secondary/60 text-center text-xs text-text-muted">
+                لا توجد معاملات مطابقة للبحث في هذا الشهر.
+              </div>
+            ) : (
+              periodTransactions.map((tx) => {
+                const acc = state.accounts.find((a) => a.id === tx.accountId);
+                const toAcc = tx.toAccountId
+                  ? state.accounts.find((a) => a.id === tx.toAccountId)
+                  : null;
+                const cat = tx.categoryId
+                  ? state.categories.find((c) => c.id === tx.categoryId)
+                  : null;
 
-              return (
-                <div
-                  key={tx.id}
-                  className="p-3.5 rounded-2xl bg-bg-secondary/90 border border-white/10 flex flex-wrap items-center justify-between gap-3"
-                >
-                  <div className="flex-1">
-                    {editingTxId === tx.id ? (
+                return (
+                  <div
+                    key={tx.id}
+                    onClick={() => openEditTxPopup(tx)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openEditTxPopup(tx);
+                      }
+                    }}
+                    className="p-3.5 rounded-2xl bg-bg-secondary/90 hover:bg-surface-highlight/50 border border-white/10 hover:border-primary-violet/40 flex flex-wrap items-center justify-between gap-3 transition-all cursor-pointer group"
+                  >
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          type="text"
-                          value={editTxDesc}
-                          onChange={(e) => setEditTxDesc(e.target.value)}
-                          className="lifeos-input text-xs py-1 px-2"
-                        />
-                        <input
-                          type="number"
-                          value={editTxAmount}
-                          onChange={(e) => setEditTxAmount(e.target.value)}
-                          className="lifeos-input text-xs py-1 px-2 w-24 tabular-nums"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (editTxDesc.trim() && Number(editTxAmount) > 0) {
-                              updateTransaction(tx.id, {
-                                description: editTxDesc.trim(),
-                                amountMinor: toMinorUnits(editTxAmount),
-                              });
-                            }
-                            setEditingTxId(null);
-                          }}
-                          className="px-3 py-1 rounded-lg bg-emerald-success text-bg-primary text-xs font-bold"
-                        >
-                          حفظ التعديل
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-text-primary">
                           {tx.description}
                         </span>
@@ -890,7 +1141,7 @@ export function FinanceMoneyStudio({
                           }`}
                         >
                           {tx.type === 'income'
-                            ? 'دخل وارد'
+                            ? 'وارد'
                             : tx.type === 'transfer'
                             ? `تحويل إلى ${toAcc?.name || ''}`
                             : cat
@@ -898,49 +1149,37 @@ export function FinanceMoneyStudio({
                             : 'غير مصنف'}
                         </span>
                       </div>
-                    )}
-                    <div className="text-xs text-text-muted tabular-nums mt-1">
-                      {tx.date} • الحساب: {acc?.name || tx.accountId}
+                      <div className="text-xs text-text-muted tabular-nums mt-1 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {tx.date}
+                        </span>
+                        <span>• {acc?.name || tx.accountId}</span>
+                        {tx.notes && <span>• {tx.notes}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`text-sm font-bold tabular-nums ${
+                          tx.type === 'income'
+                            ? 'text-emerald-success'
+                            : tx.type === 'transfer'
+                            ? 'text-cyan-accent'
+                            : 'text-danger-coral'
+                        }`}
+                      >
+                        {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '⇄'}{' '}
+                        {formatMinorUnits(tx.amountMinor, state.profile.currency)}
+                      </span>
+                      <span className="p-2 rounded-xl text-text-muted group-hover:text-cyan-accent">
+                        <Edit3 className="w-4 h-4" />
+                      </span>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-sm font-bold tabular-nums ${
-                        tx.type === 'income'
-                          ? 'text-emerald-success'
-                          : tx.type === 'transfer'
-                          ? 'text-cyan-accent'
-                          : 'text-danger-coral'
-                      }`}
-                    >
-                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '⇄'}{' '}
-                      {formatMinorUnits(tx.amountMinor, state.profile.currency)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingTxId(tx.id);
-                        setEditTxDesc(tx.description);
-                        setEditTxAmount(String(tx.amountMinor / 100));
-                      }}
-                      aria-label={`تعديل المعاملة ${tx.description}`}
-                      className="p-2 rounded-xl text-text-muted hover:text-cyan-accent"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTransaction(tx.id)}
-                      aria-label={`حذف المعاملة ${tx.description}`}
-                      className="p-2 rounded-xl text-text-muted hover:text-danger-coral"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -982,13 +1221,11 @@ export function FinanceMoneyStudio({
               </div>
             </div>
 
-            {/* Savings Goals & Debt Tracking */}
-            <div className="lifeos-card p-5 space-y-3">
+            {/* Savings Goals */}
+            <div className="lifeos-card p-5 space-y-4">
               <div className="flex items-center gap-2">
                 <PiggyBank className="w-5 h-5 text-religious-gold" />
-                <h3 className="text-base font-bold text-text-primary">
-                  أهداف الادخار ومتابعة الأقساط والالتزامات
-                </h3>
+                <h3 className="text-base font-bold text-text-primary">أهداف الادخار</h3>
               </div>
               <div className="space-y-3">
                 {state.savingsGoals.map((g) => {
@@ -1001,40 +1238,125 @@ export function FinanceMoneyStudio({
                       key={g.id}
                       className="p-3.5 rounded-2xl bg-bg-secondary border border-white/10 space-y-2"
                     >
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center justify-between gap-2 text-xs">
                         <span className="font-bold text-text-primary">{g.title}</span>
-                        <span className="tabular-nums text-emerald-success">
-                          {formatMinorUnits(g.currentAmountMinor, state.profile.currency)} /{' '}
-                          {formatMinorUnits(g.targetAmountMinor, state.profile.currency)} ({pct}%)
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="tabular-nums text-emerald-success">
+                            {formatMinorUnits(g.currentAmountMinor, state.profile.currency)} /{' '}
+                            {formatMinorUnits(g.targetAmountMinor, state.profile.currency)} ({pct}%)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => contributeToSavingsGoal(g.id, toMinorUnits('500'))}
+                            className="px-2.5 py-1 rounded-full bg-emerald-success/20 hover:bg-emerald-success text-emerald-success hover:text-bg-primary text-[11px] font-bold"
+                          >
+                            +500
+                          </button>
+                        </div>
                       </div>
                       <div className="h-2 rounded-full bg-surface-primary overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-emerald-success"
+                          className="h-full rounded-full bg-emerald-success transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
                     </div>
                   );
                 })}
+              </div>
+
+              <form onSubmit={handleAddSavingsGoal} className="flex flex-wrap gap-2 pt-1">
+                <input
+                  type="text"
+                  value={newGoalTitle}
+                  onChange={(e) => setNewGoalTitle(e.target.value)}
+                  placeholder="هدف ادخار جديد (مثلاً: شراء لابتوب)"
+                  className="lifeos-input flex-1 min-w-[150px] text-xs"
+                />
+                <input
+                  type="number"
+                  value={newGoalTarget}
+                  onChange={(e) => setNewGoalTarget(e.target.value)}
+                  placeholder="المبلغ المستهدف"
+                  className="lifeos-input w-32 text-xs tabular-nums"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-full bg-primary-violet text-white text-xs font-bold"
+                >
+                  + إضافة هدف
+                </button>
+              </form>
+            </div>
+
+            {/* Debts & Installments */}
+            <div className="lifeos-card p-5 space-y-4">
+              <h3 className="text-base font-bold text-text-primary">الأقساط والالتزامات</h3>
+              <div className="space-y-2.5">
                 {state.debts.map((d) => (
                   <div
                     key={d.id}
-                    className="p-3.5 rounded-2xl bg-bg-secondary border border-warning-amber/30 flex items-center justify-between"
+                    className="p-3.5 rounded-2xl bg-bg-secondary border border-warning-amber/30 flex flex-wrap items-center justify-between gap-2"
                   >
                     <div>
                       <div className="text-xs font-bold text-text-primary">{d.title}</div>
-                      <div className="text-[11px] text-text-muted">
-                        الجهة: {d.counterparty} • القسط الشهري:{' '}
-                        {formatMinorUnits(d.monthlyInstallmentMinor, state.profile.currency)}
+                      <div className="text-[11px] text-text-muted tabular-nums">
+                        الجهة: {d.counterparty} • القسط:{' '}
+                        {formatMinorUnits(d.monthlyInstallmentMinor, state.profile.currency)} • متبقي:{' '}
+                        <strong className="text-warning-amber">
+                          {formatMinorUnits(d.remainingAmountMinor, state.profile.currency)}
+                        </strong>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-warning-amber tabular-nums">
-                      متبقي {formatMinorUnits(d.remainingAmountMinor, state.profile.currency)}
-                    </span>
+                    {d.remainingAmountMinor > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          payDebtInstallment(
+                            d.id,
+                            Math.min(d.monthlyInstallmentMinor, d.remainingAmountMinor),
+                            state.accounts[0]?.id || 'acc_bank_main',
+                            new Date().toISOString().slice(0, 10)
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-full bg-warning-amber/20 hover:bg-warning-amber text-warning-amber hover:text-bg-primary text-xs font-bold transition-all"
+                      >
+                        سداد قسط
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
+
+              <form onSubmit={handleAddDebt} className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <input
+                  type="text"
+                  value={newDebtTitle}
+                  onChange={(e) => setNewDebtTitle(e.target.value)}
+                  placeholder="اسم القسط / الالتزام"
+                  className="lifeos-input text-xs col-span-2 sm:col-span-1"
+                />
+                <input
+                  type="text"
+                  value={newDebtCounterparty}
+                  onChange={(e) => setNewDebtCounterparty(e.target.value)}
+                  placeholder="الجهة"
+                  className="lifeos-input text-xs"
+                />
+                <input
+                  type="number"
+                  value={newDebtTotal}
+                  onChange={(e) => setNewDebtTotal(e.target.value)}
+                  placeholder="الإجمالي"
+                  className="lifeos-input text-xs tabular-nums"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-2 rounded-full bg-warning-amber text-bg-primary text-xs font-bold"
+                >
+                  + إضافة التزام
+                </button>
+              </form>
             </div>
           </div>
 
@@ -1068,7 +1390,7 @@ export function FinanceMoneyStudio({
                   step="0.01"
                   value={reconcileCounted}
                   onChange={(e) => setReconcileCounted(e.target.value)}
-                  placeholder="الرصيد الفعلي الحالي بالجنيه"
+                  placeholder="الرصيد الفعلي الحالي"
                   className="lifeos-input w-full text-sm tabular-nums"
                   required
                 />
@@ -1113,45 +1435,61 @@ export function FinanceMoneyStudio({
         </div>
       )}
 
-      {/* 5. MANDATORY MONTHLY CLOSING & CARRYOVER WIZARD */}
+      {/* 5. MONTHLY CLOSING & CARRYOVER TO NEXT MONTH */}
       {subView === 'closing' && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="lifeos-card-elevated p-6 space-y-5"
+          className="lifeos-card-elevated p-5 sm:p-6 space-y-5"
         >
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-4">
             <div>
               <span className="px-3 py-1 rounded-full bg-primary-violet/20 text-primary-violet-light text-xs font-semibold">
-                معالج الإغلاق الشهري وترحيل الميزانيات ({prevPeriodKey} ← {state.activePeriodKey})
+                تصدير وترحيل الرصيد للشهر التالي ({formatPeriodLabel(rolloverFromKey)} ←{' '}
+                {formatPeriodLabel(rolloverToKey)})
               </span>
               <h2 className="text-xl font-bold text-text-primary mt-2">
-                مراجعة أرصدة وفوائض ميزانيات الشهر السابق
+                مراجعة وترحيل فوائض الميزانيات والرصيد
               </h2>
               <p className="text-xs text-text-secondary mt-1 max-w-2xl">
-                قاعدة محرك LifeOS المحاسبية: ترحيل الفائض يزيد من مخصص الفئة في الشهر الجديد فقط ولا
-                يخلق نقداً وهمياً في حساباتك البنكية أو النقدية.
+                اختر الشهر المراد إغلاقه وتصدير فوائض فئاته إلى الشهر التالي، مع الحفاظ التام على
+                الأرصدة النقدية الفعلية في حساباتك.
               </p>
+
+              <div className="flex items-center gap-2 mt-3">
+                <label className="text-xs text-text-muted">الشهر المراد ترحيله:</label>
+                <select
+                  value={rolloverFromKey}
+                  onChange={(e) => setCustomRolloverFromKey(e.target.value)}
+                  className="lifeos-input text-xs py-1.5"
+                >
+                  {availablePeriods.map((pk) => (
+                    <option key={pk} value={pk}>
+                      {formatPeriodLabel(pk)} ({pk})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-bg-secondary border border-white/10 text-xs space-y-1 tabular-nums">
               <div>
-                دخل شهر {prevPeriodKey}:{' '}
+                الوارد في {formatPeriodLabel(rolloverFromKey)}:{' '}
                 <strong className="text-emerald-success">
-                  {formatMinorUnits(previousPeriodSummary.totalIncomeMinor, state.profile.currency)}
+                  {formatMinorUnits(rolloverSourceSummary.totalIncomeMinor, state.profile.currency)}
                 </strong>
               </div>
               <div>
-                مصروفات شهر {prevPeriodKey}:{' '}
+                الصادر في {formatPeriodLabel(rolloverFromKey)}:{' '}
                 <strong className="text-danger-coral">
-                  {formatMinorUnits(previousPeriodSummary.totalExpenseMinor, state.profile.currency)}
+                  {formatMinorUnits(rolloverSourceSummary.totalExpenseMinor, state.profile.currency)}
                 </strong>
               </div>
               <div>
-                إجمالي الفوائض القابلة للترحيل:{' '}
+                إجمالي الفوائض القابلة للتصدير:{' '}
                 <strong className="text-cyan-accent">
                   {formatMinorUnits(
-                    previousPeriodSummary.totalRemainingCategoryBudgetMinor,
+                    rolloverSourceSummary.totalRemainingCategoryBudgetMinor,
                     state.profile.currency
                   )}
                 </strong>
@@ -1166,10 +1504,11 @@ export function FinanceMoneyStudio({
             </div>
           )}
 
-          {isPrevMonthClosed ? (
+          {isRolloverDone ? (
             <div className="space-y-3">
               <div className="p-4 rounded-2xl bg-bg-secondary border border-emerald-success/30 text-sm text-emerald-success font-semibold">
-                تم اعتماد وإغلاق شهر {prevPeriodKey} رسمياً (محمي ضد التكرار Idempotent).
+                تم اعتماد إغلاق {formatPeriodLabel(rolloverFromKey)} وتصدير الأرصدة إلى{' '}
+                {formatPeriodLabel(rolloverToKey)} بنجاح.
               </div>
               {state.closingReviews.map((rev) => (
                 <div
@@ -1200,7 +1539,7 @@ export function FinanceMoneyStudio({
           ) : (
             <form onSubmit={handleExecuteClosing} className="space-y-4">
               <div className="space-y-3">
-                {previousPeriodSummary.categoryStatuses.map((cat) => {
+                {rolloverSourceSummary.categoryStatuses.map((cat) => {
                   const decision = decisionsMap[cat.categoryId] || {
                     mode: 'none',
                     customMajor: '0',
@@ -1235,9 +1574,9 @@ export function FinanceMoneyStudio({
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         {(
                           [
-                            { id: 'full', label: `ترحيل كامل الفائض (${maxMajor} ج.م)` },
+                            { id: 'full', label: `ترحيل كامل الفائض (${maxMajor})` },
                             { id: 'custom', label: 'ترحيل مبلغ مخصص' },
-                            { id: 'none', label: 'عدم ترحيل (تصفير الفائض)' },
+                            { id: 'none', label: 'تصفير الفائض' },
                           ] as const
                         ).map((opt) => (
                           <button
@@ -1295,8 +1634,8 @@ export function FinanceMoneyStudio({
                   className="w-5 h-5 accent-primary-violet"
                 />
                 <span className="text-xs font-medium text-text-primary">
-                  أؤكد مراجعتي لأرصدة شهر {prevPeriodKey} وأوافق صراحةً على قرارات ترحيل الميزانية
-                  المحددة أعلاه إلى شهر {state.activePeriodKey}.
+                  أؤكد مراجعتي لأرصدة شهر {formatPeriodLabel(rolloverFromKey)} وأوافق على تصدير
+                  وترحيل المبالغ المحددة أعلاه إلى شهر {formatPeriodLabel(rolloverToKey)}.
                 </span>
               </label>
 
@@ -1304,12 +1643,34 @@ export function FinanceMoneyStudio({
                 type="submit"
                 className="w-full py-3.5 rounded-full bg-emerald-success hover:opacity-95 text-bg-primary text-sm font-bold shadow-lg transition-all min-h-[48px]"
               >
-                اعتماد الإغلاق الشهري وتطبيق الترحيل الآن
+                اعتماد وتصدير الرصيد إلى {formatPeriodLabel(rolloverToKey)}
               </button>
             </form>
           )}
         </motion.div>
       )}
+
+      {/* Popup Modals */}
+      <TransactionPopupModal
+        key={
+          txPopupOpen
+            ? `${txPopupInitial?.mode}_${txPopupInitial?.transaction?.id || txPopupInitial?.defaultCategoryId || txPopupInitial?.defaultType || 'new'}`
+            : 'closed'
+        }
+        open={txPopupOpen}
+        initial={txPopupInitial}
+        onClose={() => setTxPopupOpen(false)}
+      />
+
+      <CategoryDetailModal
+        open={selectedCategoryId !== null}
+        categoryStatus={selectedCategoryStatus}
+        onClose={() => setSelectedCategoryId(null)}
+        onOpenNewTxInCategory={(catId) =>
+          openCreateTxPopup({ defaultType: 'expense', defaultCategoryId: catId })
+        }
+        onEditTransaction={(tx) => openEditTxPopup(tx)}
+      />
     </div>
   );
 }

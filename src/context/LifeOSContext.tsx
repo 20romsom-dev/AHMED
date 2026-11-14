@@ -896,6 +896,12 @@ interface LifeOSContextValue {
     toPeriodKey: string,
     decisions: CategoryCarryoverInput[]
   ) => MonthlyClosingReview;
+  addIncomeSource: (src: Omit<IncomeSource, 'id' | 'isActive'>) => void;
+  deleteIncomeSource: (id: string) => void;
+  addSavingsGoal: (goal: Omit<SavingsGoal, 'id'>) => void;
+  contributeToSavingsGoal: (goalId: string, amountMinor: number) => void;
+  addDebtRecord: (debt: Omit<DebtRecord, 'id'>) => void;
+  payDebtInstallment: (debtId: string, amountMinor: number, accountId: string, dateISO: string) => void;
   // Wellbeing, Goals, Notes
   toggleHabitDate: (habitId: string, dateISO: string) => void;
   addHabit: (title: string, category: string, color: string, frequency?: 'daily' | 'weekly') => void;
@@ -1464,6 +1470,92 @@ export function LifeOSProvider({ children }: { children: React.ReactNode }) {
     return result.review;
   };
 
+  const addIncomeSource = (src: Omit<IncomeSource, 'id' | 'isActive'>) => {
+    const newSrc: IncomeSource = {
+      ...src,
+      id: `inc_${Date.now()}`,
+      isActive: true,
+    };
+    setState((prev) => ({
+      ...prev,
+      incomeSources: [...prev.incomeSources, newSrc],
+    }));
+  };
+
+  const deleteIncomeSource = (id: string) => {
+    setState((prev) => ({
+      ...prev,
+      incomeSources: prev.incomeSources.filter((s) => s.id !== id),
+    }));
+  };
+
+  const addSavingsGoal = (goal: Omit<SavingsGoal, 'id'>) => {
+    const newGoal: SavingsGoal = {
+      ...goal,
+      id: `sav_${Date.now()}`,
+    };
+    setState((prev) => ({
+      ...prev,
+      savingsGoals: [...prev.savingsGoals, newGoal],
+    }));
+  };
+
+  const contributeToSavingsGoal = (goalId: string, amountMinor: number) => {
+    const clean = Math.max(0, Math.trunc(amountMinor));
+    if (clean <= 0) return;
+    setState((prev) => ({
+      ...prev,
+      savingsGoals: prev.savingsGoals.map((g) =>
+        g.id === goalId
+          ? { ...g, currentAmountMinor: Math.min(g.targetAmountMinor * 2, g.currentAmountMinor + clean) }
+          : g
+      ),
+    }));
+  };
+
+  const addDebtRecord = (debt: Omit<DebtRecord, 'id'>) => {
+    const newDebt: DebtRecord = {
+      ...debt,
+      id: `debt_${Date.now()}`,
+    };
+    setState((prev) => ({
+      ...prev,
+      debts: [...prev.debts, newDebt],
+    }));
+  };
+
+  const payDebtInstallment = (
+    debtId: string,
+    amountMinor: number,
+    accountId: string,
+    dateISO: string
+  ) => {
+    const clean = Math.max(0, Math.trunc(amountMinor));
+    if (clean <= 0) return;
+    const debt = state.debts.find((d) => d.id === debtId);
+    if (!debt) return;
+
+    addTransaction({
+      type: debt.direction === 'owed_by_me' ? 'expense' : 'income',
+      amountMinor: clean,
+      accountId,
+      categoryId: null,
+      date: dateISO,
+      description: `سداد قسط: ${debt.title}`,
+      notes: `الجهة: ${debt.counterparty}`,
+      isRecurring: false,
+    });
+
+    setState((prev) => ({
+      ...prev,
+      debts: prev.debts.map((d) =>
+        d.id === debtId
+          ? { ...d, remainingAmountMinor: Math.max(0, d.remainingAmountMinor - clean) }
+          : d
+      ),
+    }));
+  };
+
   const toggleHabitDate = (habitId: string, dateISO: string) => {
     setState((prev) => ({
       ...prev,
@@ -1826,6 +1918,12 @@ export function LifeOSProvider({ children }: { children: React.ReactNode }) {
         archiveAccount,
         reconcileAccount,
         confirmMonthlyRollover,
+        addIncomeSource,
+        deleteIncomeSource,
+        addSavingsGoal,
+        contributeToSavingsGoal,
+        addDebtRecord,
+        payDebtInstallment,
         toggleHabitDate,
         addHabit,
         updateHabit,
